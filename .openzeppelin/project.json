@@ -1,0 +1,9 @@
+{
+  "manifestVersion": "2.2",
+  "contracts": {
+    "PlaceHolder": "PlaceHolder_v0"
+  },
+  "dependencies": {},
+  "name": "@ticket721/metamarketplace",
+  "version": "1.0.0"
+}
