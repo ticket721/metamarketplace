@@ -14,7 +14,7 @@ const config = {
     },
     plugins: ["solidity-coverage"],
     mocha: {
-        
+        useColors: true
     }
 };
 

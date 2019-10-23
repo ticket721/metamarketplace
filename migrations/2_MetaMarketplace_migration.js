@@ -7,7 +7,9 @@ async function deploy(options) {
 
     await push(options);
 
-    await create(Object.assign({ contractAlias: 'PlaceHolder', methodName: 'initialize' }, options));
+    const network_id = await web3.eth.net.getId();
+
+    await create(Object.assign({ contractAlias: 'MetaMarketplace', methodName: 'initialize_v0', methodArgs: [network_id] }, options));
 }
 
 module.exports = async function(deployer, networkName, accounts) {
