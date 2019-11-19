@@ -1,13 +1,12 @@
 pragma solidity >=0.4.25 <0.6.0;
 
-import "@openzeppelin/upgrades/contracts/Initializable.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "erc2280/contracts/IERC2280.sol";
 import "./MetaMarketplaceDomain_v0.sol";
 import "./BytesUtil_v0.sol";
 
-contract MetaMarketplace_v0 is Initializable, MetaMarketplaceDomain_v0 {
+contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
 
     event SealedAuction(
         address indexed buyer,
@@ -23,8 +22,8 @@ contract MetaMarketplace_v0 is Initializable, MetaMarketplaceDomain_v0 {
 
     mapping (uint256 => uint256) ticket_nonces;
 
-    function initialize_v0(uint256 _chainId, address _dai, address _daiplus, address _t721) initializer public {
-        MetaMarketplaceDomain_v0.initialize_v0("MetaMarketplace", "0", _chainId);
+    constructor(uint256 _chainId, address _dai, address _daiplus, address _t721)
+    MetaMarketplaceDomain_v0("MetaMarketplace", "0", _chainId) public {
         dai = IERC20(_dai);
         daiplus = IERC2280(_daiplus);
         t721 = IERC721(_t721);

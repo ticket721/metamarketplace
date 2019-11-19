@@ -11,7 +11,6 @@ module.exports = {
 
         const MetaMarketplace = this.contracts[CONTRACT_NAME];
         const { ERC20, ERC2280, ERC721 } = this.contracts;
-        await MetaMarketplace.initialize_v0(CHAIN_ID, this.contracts.ERC20.address, this.contracts.ERC2280.address, this.contracts.ERC721.address);
 
         const TicketOwnerWallet = ethers.Wallet.createRandom();
         const TicketBuyerWallet = ethers.Wallet.createRandom();

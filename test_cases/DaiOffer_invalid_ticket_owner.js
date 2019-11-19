@@ -10,12 +10,11 @@ module.exports = {
 
         const MetaMarketplace = this.contracts[CONTRACT_NAME];
         const { ERC20, ERC2280, ERC721 } = this.contracts;
-        await MetaMarketplace.initialize_v0(CHAIN_ID, this.contracts.ERC20.address, this.contracts.ERC2280.address, this.contracts.ERC721.address);
 
         const TicketOwnerWallet = ethers.Wallet.createRandom();
         const TicketBuyerWallet = ethers.Wallet.createRandom();
 
-        const EthersERC20Instance = await getEthersERC20Contract(artifacts.require('ERC20Mock'), ERC20, TicketBuyerWallet);
+        const EthersERC20Instance = await getEthersERC20Contract(artifacts.require('ERC20Mock_v0'), ERC20, TicketBuyerWallet);
 
         const TicketOwner = TicketOwnerWallet.address;
         const RealTicketOwner = accounts[3];
