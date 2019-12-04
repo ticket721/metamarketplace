@@ -4,7 +4,7 @@ const { revert, snapshot } = require('../test_cases/utils');
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
-const { setScopeIndex, CONTRACT_NAME, SCOPE_NAME } = require('../test_cases/constants');
+const { setScopeIndex, CONTRACT_NAME, SCOPE_NAME, CHAIN_ID } = require('../test_cases/constants');
 
 const { daioffer } = require('../test_cases/DaiOffer');
 const { daioffer_no_reward } = require('../test_cases/DaiOffer_no_reward');
@@ -31,16 +31,15 @@ const { daiplusoffer_no_reward } = require('../test_cases/DaiPlusOffer_no_reward
 contract('metamarketplace', (accounts) => {
 
     before(async function () {
+        const ERC20MockArtifact = artifacts.require('ERC20Mock_v0');
+        const ERC2280MockArtifact = artifacts.require('ERC2280Mock_v0');
+        const ERC721MockArtifact = artifacts.require('ERC721Mock_v0');
         const MetaMarketplaceArtifact = artifacts.require(CONTRACT_NAME);
-        const MetaMarketplaceInstance = await MetaMarketplaceArtifact.new();
 
-        const ERC20MockArtifact = artifacts.require('ERC20Mock');
-        const ERC2280MockArtifact = artifacts.require('ERC2280Mock');
-        const ERC721MockArtifact = artifacts.require('ERC721Mock');
-
-        const ERC20Instance = await ERC20MockArtifact.new();
-        const ERC2280Instance = await ERC2280MockArtifact.new(ERC20Instance.address);
-        const ERC721Instance = await ERC721MockArtifact.new();
+        const ERC20Instance = await ERC20MockArtifact.deployed();
+        const ERC2280Instance = await ERC2280MockArtifact.deployed();
+        const ERC721Instance = await ERC721MockArtifact.deployed();
+        const MetaMarketplaceInstance = await MetaMarketplaceArtifact.new(CHAIN_ID, ERC20Instance.address, ERC2280Instance.address, ERC721Instance.address);
 
         await ERC721Instance.createScope(SCOPE_NAME, '0x0000000000000000000000000000000000000000', [MetaMarketplaceInstance.address], []);
         const scope = await ERC721Instance.getScope(SCOPE_NAME);

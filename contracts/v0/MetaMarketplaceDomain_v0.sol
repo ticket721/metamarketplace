@@ -139,7 +139,7 @@ contract MetaMarketplaceDomain_v0 {
         return ecrecover(digest, signature.v, signature.r, signature.s);
     }
 
-    function initialize_v0(string memory _domain_name, string memory _version, uint256 _chainId) internal {
+    constructor(string memory _domain_name, string memory _version, uint256 _chainId) internal {
         DOMAIN_SEPARATOR = hash(EIP712Domain({
             name: _domain_name,
             version: _version,
