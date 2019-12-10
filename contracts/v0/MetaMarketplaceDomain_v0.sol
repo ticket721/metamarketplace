@@ -1,4 +1,4 @@
-pragma solidity >=0.4.25 <0.6.0;
+pragma solidity 0.5.13;
 
 contract MetaMarketplaceDomain_v0 {
 
@@ -56,85 +56,38 @@ contract MetaMarketplaceDomain_v0 {
 
     bytes32 DOMAIN_SEPARATOR;
 
-    struct Auction {
-        address seller;
+    struct MarketplaceOffer {
         address buyer;
-        address relayer;
+        address seller;
         uint256 ticket;
         uint256 nonce;
+        bytes currencies;
+        bytes prices;
     }
 
-    bytes32 constant AUCTION_TYPEHASH = keccak256(
-        "Auction(address seller,address buyer,address relayer,uint256 ticket,uint256 nonce)"
+    bytes32 constant MARKETPLACEOFFER_TYPEHASH = keccak256(
+    // solhint-disable-next-line max-line-length
+        "MarketplaceOffer(address buyer,address seller,uint256 ticket,uint256 nonce,bytes currencies,bytes prices)"
     );
 
-    function hash(Auction memory auction) internal pure returns (bytes32) {
+    function hash(MarketplaceOffer memory mpo) internal pure returns (bytes32) {
         return keccak256(abi.encode(
-                AUCTION_TYPEHASH,
-                auction.seller,
-                auction.buyer,
-                auction.relayer,
-                auction.ticket,
-                auction.nonce
+                MARKETPLACEOFFER_TYPEHASH,
+                mpo.buyer,
+                mpo.seller,
+                mpo.ticket,
+                mpo.nonce,
+                keccak256(mpo.currencies),
+                keccak256(mpo.prices)
             ));
     }
 
-    struct DaiOffer {
-        Auction auction;
-        uint256 amount;
-        uint256 reward;
-    }
-
-    bytes32 constant DAIOFFER_TYPEHASH = keccak256(
-        // solhint-disable-next-line max-line-length
-        "DaiOffer(Auction auction,uint256 amount,uint256 reward)Auction(address seller,address buyer,address relayer,uint256 ticket,uint256 nonce)"
-    );
-
-    function hash(DaiOffer memory daioffer) internal pure returns (bytes32) {
-        return keccak256(abi.encode(
-                DAIOFFER_TYPEHASH,
-                hash(daioffer.auction),
-                daioffer.amount,
-                daioffer.reward
-            ));
-    }
-
-    function verify(DaiOffer memory daioffer, bytes memory raw_signature) internal view returns (address) {
+    function verify(MarketplaceOffer memory mpo, bytes memory raw_signature) internal view returns (address) {
         Signature memory signature = _splitSignature(raw_signature);
         bytes32 digest = keccak256(abi.encodePacked(
                 "\x19\x01",
                 DOMAIN_SEPARATOR,
-                hash(daioffer)
-            ));
-        return ecrecover(digest, signature.v, signature.r, signature.s);
-    }
-
-    struct DaiPlusOffer {
-        Auction auction;
-        uint256 amount;
-        uint256 reward;
-    }
-
-    bytes32 constant DAIPLUSOFFER_TYPEHASH = keccak256(
-        // solhint-disable-next-line max-line-length
-        "DaiPlusOffer(Auction auction,uint256 amount,uint256 reward)Auction(address seller,address buyer,address relayer,uint256 ticket,uint256 nonce)"
-    );
-
-    function hash(DaiPlusOffer memory daiplusoffer) internal pure returns (bytes32) {
-        return keccak256(abi.encode(
-                DAIPLUSOFFER_TYPEHASH,
-                hash(daiplusoffer.auction),
-                daiplusoffer.amount,
-                daiplusoffer.reward
-            ));
-    }
-
-    function verify(DaiPlusOffer memory daiplusoffer, bytes memory raw_signature) internal view returns (address) {
-        Signature memory signature = _splitSignature(raw_signature);
-        bytes32 digest = keccak256(abi.encodePacked(
-                "\x19\x01",
-                DOMAIN_SEPARATOR,
-                hash(daiplusoffer)
+                hash(mpo)
             ));
         return ecrecover(digest, signature.v, signature.r, signature.s);
     }
