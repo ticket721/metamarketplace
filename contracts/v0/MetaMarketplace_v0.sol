@@ -1,31 +1,29 @@
-pragma solidity >=0.4.25 <0.6.0;
+pragma solidity 0.5.13;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "erc2280/contracts/IERC2280.sol";
 import "./MetaMarketplaceDomain_v0.sol";
 import "./BytesUtil_v0.sol";
+import "./IRefractWallet_v0.sol";
 
 contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
 
-    event SealedAuction(
+    event SealedOffer(
         address indexed buyer,
         address indexed seller,
         uint256 indexed ticket,
-        address currency,
-        uint256 amount
+        uint256 nonce,
+        bytes currencies,
+        bytes prices
     );
 
-    IERC20 public dai;
-    IERC2280 public daiplus;
     IERC721 public t721;
 
     mapping (uint256 => uint256) ticket_nonces;
 
-    constructor(uint256 _chainId, address _dai, address _daiplus, address _t721)
+    constructor(uint256 _chainId, address _t721)
     MetaMarketplaceDomain_v0("MetaMarketplace", "0", _chainId) public {
-        dai = IERC20(_dai);
-        daiplus = IERC2280(_daiplus);
         t721 = IERC721(_t721);
     }
 
@@ -48,331 +46,345 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
         return ticket_nonces[ticket];
     }
 
-    // @notice Verifies a Dai deal before submitting it.
-    //
-    // @dev The function MUST throw if nonce is invalid
-    //
-    // @dev The function MUST throw if signatures are invalid
-    //
-    // @dev The function MUST throw if buyer hasn't alowed enough Dai to cover payment + reward
-    //
-    // @dev `seller` is the initial ticket owner (actors[0])
-    // @dev `buyer` is the actor purchasing the ticket (actors[1])
-    // @dev `ticket` is the id of the sold ticket (offer_arguments[0])
-    // @dev `nonce` is the transaction id of the sale (offer_arguments[1])
-    // @dev `amount` is the price paid by the buyer to the seller (offer_arguments[2])
-    // @dev `reward` is the prive paid by the buyer to the transaction relayer (offer_arguments[3])
-    //
-    // @param actors Array of `address`es that contains `seller` as `actors[0]` and `buyer` as `actors[1]`.
-    //
-    // @param offer_arguments Array of `uint256` that contains `ticket` as `offer_arguments[0]`,
-    //                        `nonce` as `offer_arguments[1]`, `amount` as `offer_arguments[2]`, and `reward` as
-    //                        `offer_arguments[3]`.
-    //
-    function checkDaiOffer(
-        address[3] calldata actors,
-        uint256[4] calldata offer_arguments,
-        bytes calldata signatures
-    ) external view {
-        // 1. Verify Relayer
-        require(actors[2] == msg.sender || actors[2] == address(0), "MMv0::checkDaiOffer | invalid relayer");
+    // @notice Utility to verify ERC20 payment parameters
+    function verifyERC20Payment(
+        address[] memory addr,
+        uint256[] memory nums,
+        uint256 addr_idx,
+        uint256 nums_idx
+        ) internal view {
 
-        // 2. Verify Nonce
-        require(ticket_nonces[offer_arguments[0]] == offer_arguments[1],
-            "MMv0::checkDaiOffer | invalid nonce for ticket offer");
+        require(addr.length - addr_idx >= 1, "MMv0::verifyERC20Payment | invalid address argument length");
+        require(nums.length - nums_idx >= 2, "MMv0::verifyERC20Payment | invalid nums argument length");
 
-        // 3. Check signature length
-        require(signatures.length == 65 * 2, "MMv0::checkDaiOffer | signatures should be 130 bytes long");
+        require(IERC20(addr[addr_idx]).allowance(addr[0], address(this)) >= nums[nums_idx + 1],
+        "MMv0::verifyERC20Payment | allowance too low");
 
-        // 4. Check signatures validity
-        bytes memory seller_signature = BytesUtil_v0.slice(signatures, 0, 65);
-        bytes memory buyer_signature = BytesUtil_v0.slice(signatures, 65, 65);
-
-        DaiOffer memory daioffer = DaiOffer({
-            auction: Auction({
-                seller: actors[0],
-                buyer: actors[1],
-                relayer: actors[2],
-                ticket: offer_arguments[0],
-                nonce: offer_arguments[1]
-                }),
-            amount: offer_arguments[2],
-            reward: offer_arguments[3]
-            });
-
-        address seller_verification = verify(daioffer, seller_signature);
-        address buyer_verification = verify(daioffer, buyer_signature);
-
-        require(seller_verification == actors[0], "MMv0::checkDaiOffer | failed seller signature check");
-        require(buyer_verification == actors[1], "MMv0::checkDaiOffer | failed buyer signature check");
-
-        // 5. Check payer dai allowance
-        require(dai.allowance(daioffer.auction.buyer, address(this)) >= daioffer.amount + daioffer.reward,
-            "MMv0::checkDaiOffer | buyer dai allowance too low");
-
-        // 6. Check ERC721 ownership of the ticket
-        require(t721.ownerOf(daioffer.auction.ticket) == daioffer.auction.seller,
-            "MMv0::checkDaiOffer | seller is not ticket owner");
     }
 
-    // @notice Seals an exchange of a ticket for DAI. Two signatures (seller & buyer) are required
-    //         to trigger the exchange mechanism.
+    // @notice Utility to verify ERC2280 payment parameters
+    function verifyERC2280Payment(
+        address[] memory addr,
+        uint256[] memory nums,
+        bytes memory bdata,
+        uint256 addr_idx,
+        uint256 nums_idx,
+        uint256 bdata_idx) internal view {
+
+        require(addr.length - addr_idx >= 1, "MMv0::verifyERC2280Payment | invalid address argument length");
+        require(nums.length - nums_idx >= 2, "MMv0::verifyERC2280Payment | invalid nums argument length");
+        require(bdata.length - bdata_idx >= 65, "MMv0::verifyERC2280Payment | invalid bdata argument length");
+
+        uint256 nonce = IERC2280(addr[addr_idx]).nonceOf(addr[0]);
+
+        bytes memory mtransfer_signature = BytesUtil_v0.slice(bdata, bdata_idx, 65);
+
+        address[3] memory actors = [
+        addr[0],
+        address(this),
+        addr[1]
+        ];
+
+        uint256[5] memory txparams = [
+        nonce,
+        0,
+        0,
+        0,
+        nums[nums_idx + 1]
+        ];
+
+        IERC2280(addr[addr_idx]).verifyTransfer(actors, txparams, mtransfer_signature);
+    }
+
+    // @notice Utility to verify marketplace offer sealing
     //
-    // @dev The function MUST throw if nonce is invalid
     //
-    // @dev The function MUST throw if signatures are invalid
+    // @param addr Array containing address arguments for the marketplace sealing
     //
-    // @dev The function MUST throw if buyer hasn't alowed enough Dai to cover payment + reward
+    //             ```
+    //             | buyer      | > Ticket buyer
+    //             | seller     | > Ticket seller
+    //             | currency 1 | > First currency used
+    //             | currency 2 | > Second currency used
+    //             ```
     //
-    // @dev `seller` is the initial ticket owner (actors[0])
-    // @dev `buyer` is the actor purchasing the ticket (actors[1])
-    // @dev `ticket` is the id of the sold ticket (offer_arguments[0])
-    // @dev `nonce` is the transaction id of the sale (offer_arguments[1])
-    // @dev `amount` is the price paid by the buyer to the seller (offer_arguments[2])
-    // @dev `reward` is the prive paid by the buyer to the transaction relayer (offer_arguments[3])
+    // @param nums Array containing uint256 arguments for the marketplace sealing
     //
-    // @param actors Array of `address`es that contains `seller` as `actors[0]` and `buyer` as `actors[1]`.
+    //             ```
+    //             | ticket_id                 | > ID of sold ticket
+    //             | nonce                     | > Nonce of marketplace seal
+    //             | buyer_mode                | > 1 for normal wallet, 2 for Refract smart wallet
+    //             | seller_mode               | > same as above
+    //             | currency_count = 2        | > Number of currency used for payment
+    //             | currency 1 mode = erc20   | \ Payment 1 configuration
+    //             | currency 1 price          | /
+    //             | currency 2 mode = erc2280 | \ Payment 2 configuration
+    //             | currency 2 price          | /
+    //             ```
     //
-    // @param offer_arguments Array of `uint256` that contains `ticket` as `offer_arguments[0]`,
-    //                        `nonce` as `offer_arguments[1]`, `amount` as `offer_arguments[2]`, and `reward` as
-    //                        `offer_arguments[3]`.
+    // @param bdata Contains the signature of a controller, respecting the ERC712 standard, signing an mtx
+    //                  data structure type, followed by transaction data.
     //
-    function sealDaiOffer(
-        address[3] calldata actors,
-        uint256[4] calldata offer_arguments,
-        bytes calldata signatures
-    ) external relayerCheck(actors[2]) ticketNonceCheck(offer_arguments[0], offer_arguments[1]) {
+    //             ```
+    //             | buyer_seal_signature         | > EIP712 Signature from the buyer
+    //             | seller_seal_signature        | > EIP712 Signature from the seller
+    //             | currency 2 erc2280_signature | > ERC2280 transfer signature
+    //             ```
+    function verifySeal(address[] calldata addr, uint256[] calldata nums, bytes calldata bdata) external view {
 
-        require(signatures.length == 65 * 2, "MMv0::sealDaiOffer | signatures should be 130 bytes long");
+        require(addr.length >= 2, "MMv0::verifySeal | invalid address argument length");
+        require(nums.length >= 5, "MMv0::verifySeal | invalid nums argument length");
+        require(bdata.length >= 130, "MMv0::verifySeal | invalid bdata argument length");
 
-        bytes memory seller_signature = BytesUtil_v0.slice(signatures, 0, 65);
-        bytes memory buyer_signature = BytesUtil_v0.slice(signatures, 65, 65);
+        require(ticket_nonces[nums[0]] == nums[1], "MMv0::verifySeal | invalid offer nonce");
 
-        DaiOffer memory daioffer = DaiOffer({
-            auction: Auction({
-                seller: actors[0],
-                buyer: actors[1],
-                relayer: actors[2],
-                ticket: offer_arguments[0],
-                nonce: offer_arguments[1]
-                }),
-            amount: offer_arguments[2],
-            reward: offer_arguments[3]
-            });
+        require(t721.ownerOf(nums[0]) == addr[1], "MMv0::verifySeal | seller is not ticket owner");
+        require(addr[1] != addr[0], "MMv0::verifySeal | seller is also buyer");
+        require(nums[4] > 0, "MMv0::verifySeal | invalid empty currency count");
 
-        address seller_verification = verify(daioffer, seller_signature);
-        address buyer_verification = verify(daioffer, buyer_signature);
+        bytes memory currencies = "";
+        bytes memory prices = "";
 
-        require(seller_verification == actors[0], "MMv0::sealDaiOffer | failed seller signature check");
-        require(buyer_verification == actors[1], "MMv0::sealDaiOffer | failed buyer signature check");
+        {
+            uint256 nums_idx = 5;
+            uint256 addr_idx = 2;
+            uint256 bdata_idx = 130;
 
-        // 1. Recover Dai before dai+ wrapping
-        dai.transferFrom(daioffer.auction.buyer, address(this), daioffer.amount + daioffer.reward);
-        dai.approve(address(daiplus), daioffer.amount + daioffer.reward);
+            for (uint256 idx = 0; idx < nums[4]; ++idx) {
+                if (nums[nums_idx] == 1) { // ERC20
+                    verifyERC20Payment(addr, nums, addr_idx, nums_idx);
+                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
+                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
 
-        // 2. Paying Seller. Takes Dai and converts it into Dai+ for seller.
-        daiplus.transferFrom(address(daiplus), daioffer.auction.seller, daioffer.amount);
+                    nums_idx += 2;
+                    addr_idx += 1;
 
-        // 3. Transfering Ticket
-        t721.transferFrom(daioffer.auction.seller, daioffer.auction.buyer, daioffer.auction.ticket);
+                } else if (nums[nums_idx] == 2) { // ERC2280
 
-        // 4. Paying Reward
-        if (daioffer.reward > 0) {
-            daiplus.transferFrom(address(daiplus), msg.sender, daioffer.reward);
+                    verifyERC2280Payment(addr, nums, bdata, addr_idx, nums_idx, bdata_idx);
+                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
+                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
+
+                    nums_idx += 2;
+                    addr_idx += 1;
+                    bdata_idx += 65;
+
+                } else {
+                    revert("MMv0::verifySeal | invalid payment method");
+                }
+            }
         }
 
-        emit SealedAuction(
-            daioffer.auction.buyer,
-            daioffer.auction.seller,
-            daioffer.auction.ticket,
-            address(daiplus),
-            daioffer.amount
-        );
-    }
-
-    // @notice Verifies a Dai+ deal before submitting it.
-    //
-    // @dev The function MUST throw if nonce is invalid
-    //
-    // @dev The function MUST throw if signatures are invalid
-    //
-    // @dev The function MUST throw if buyer hasn't alowed enough Dai to cover payment + reward
-    //
-    // @dev `seller` is the initial ticket owner (actors[0])
-    // @dev `buyer` is the actor purchasing the ticket (actors[1])
-    // @dev `ticket` is the id of the sold ticket (offer_arguments[0])
-    // @dev `nonce` is the transaction id of the sale (offer_arguments[1])
-    // @dev `amount` is the price paid by the buyer to the seller (offer_arguments[2])
-    // @dev `reward` is the prive paid by the buyer to the transaction relayer (offer_arguments[3])
-    // @dev `nonce` used for the dai+ approval (payment_arguments[0])
-    // @dev `nonce` used for the dai+ approval (payment_arguments[0])
-    // @dev `gasLimit` used for the dai+ approval (payment_arguments[1])
-    // @dev `gasPrice` used for the dai+ approval (payment_arguments[2])
-    //
-    // @param actors Array of `address`es that contains `seller` as `actors[0]` and `buyer` as `actors[1]`.
-    //
-    // @param offer_arguments Array of `uint256` that contains `ticket` as `offer_arguments[0]`,
-    //                        `nonce` as `offer_arguments[1]`, `amount` as `offer_arguments[2]`, and `reward` as
-    //                        `offer_arguments[3]`.
-    //
-    // @param payment_arguments Array of `uint256` that contains `nonce` as `payment_arguments[0]`, `gasLimit` as
-    //                          `payment_arguments[1]` and `gasPrice` as `payment_arguments[2]`.
-    //
-    function checkDaiPlusOffer(
-        address[3] calldata actors,
-        uint256[4] calldata offer_arguments,
-        uint256[3] calldata payment_arguments,
-        bytes calldata signatures
-    ) external view {
-        // 1. Verify Relayer
-        require(actors[2] == msg.sender || actors[2] == address(0), "MMv0::checkDaiPlusOffer | invalid relayer");
-
-        // 2. Verify Nonce
-        require(ticket_nonces[offer_arguments[0]] == offer_arguments[1],
-            "MMv0::checkDaiPlusOffer | invalid nonce for ticket offer");
-
-        require(signatures.length == 65 * 3, "MMv0::checkDaiPlusOffer | signatures should be 195 bytes long");
-
-        // 3. Verify Dai+ approval
-        daiplus.verifyApprove(
-            [
-            actors[1],
-            address(this),
-            address(this)
-            ],
-            [
-            payment_arguments[0],
-            payment_arguments[1],
-            payment_arguments[2],
-            0,
-            offer_arguments[2] + offer_arguments[3]
-            ],
-            BytesUtil_v0.slice(signatures, 130, 65)
-        );
-
-        bytes memory seller_signature = BytesUtil_v0.slice(signatures, 0, 65);
-        bytes memory buyer_signature = BytesUtil_v0.slice(signatures, 65, 65);
-
-        DaiPlusOffer memory daiplusoffer = DaiPlusOffer({
-            auction: Auction({
-                seller: actors[0],
-                buyer: actors[1],
-                relayer: actors[2],
-                ticket: offer_arguments[0],
-                nonce: offer_arguments[1]
-                }),
-            amount: offer_arguments[2],
-            reward: offer_arguments[3]
+        bytes memory buyer_signature = BytesUtil_v0.slice(bdata, 0, 65);
+        bytes memory seller_signature = BytesUtil_v0.slice(bdata, 65, 65);
+        MarketplaceOffer memory mpo = MarketplaceOffer({
+            buyer: addr[0],
+            seller: addr[1],
+            ticket: nums[0],
+            nonce: nums[1],
+            currencies: currencies,
+            prices: prices
             });
 
-        address seller_verification = verify(daiplusoffer, seller_signature);
-        address buyer_verification = verify(daiplusoffer, buyer_signature);
+        if (nums[2] == 1) { // Buyer is classic wallet
+            require(verify(mpo, buyer_signature) == mpo.buyer, "MMv0::verifySeal | invalid buyer signature");
+        } else if (nums[2] == 2) { // Buyer is smart wallet
 
-        // 4. Verify signatures
-        require(seller_verification == actors[0], "MMv0::checkDaiPlusOffer | failed seller signature check");
-        require(buyer_verification == actors[1], "MMv0::checkDaiPlusOffer | failed buyer signature check");
+            address controller = verify(mpo, buyer_signature);
+            address payable identity = address(uint160(mpo.buyer));
+            require(IRefractWallet_v0(identity).isController(controller) == true,
+            "MMv0::verifySeal | invalid buyer controller signature");
 
-        // 5. Check ERC721 ownership of the ticket
-        require(t721.ownerOf(daiplusoffer.auction.ticket) == daiplusoffer.auction.seller,
-            "MMv0::checkDaiPlusOffer | seller is not ticket owner");
-
-    }
-
-    // @notice Seals an exchange of a ticket for DAI+. Two signatures (seller & buyer) are required
-    //         to trigger the exchange mechanism.
-    //
-    // @dev The function MUST throw if nonce is invalid
-    //
-    // @dev The function MUST throw if signatures are invalid
-    //
-    // @dev The function MUST throw if buyer hasn't alowed enough Dai to cover payment + reward
-    //
-    // @dev `seller` is the initial ticket owner (actors[0])
-    // @dev `buyer` is the actor purchasing the ticket (actors[1])
-    // @dev `ticket` is the id of the sold ticket (offer_arguments[0])
-    // @dev `nonce` is the transaction id of the sale (offer_arguments[1])
-    // @dev `amount` is the price paid by the buyer to the seller (offer_arguments[2])
-    // @dev `reward` is the prive paid by the buyer to the transaction relayer (offer_arguments[3])
-    // @dev `nonce` used for the dai+ approval (payment_arguments[0])
-    // @dev `nonce` used for the dai+ approval (payment_arguments[0])
-    // @dev `gasLimit` used for the dai+ approval (payment_arguments[1])
-    // @dev `gasPrice` used for the dai+ approval (payment_arguments[2])
-    //
-    // @param actors Array of `address`es that contains `seller` as `actors[0]` and `buyer` as `actors[1]`.
-    //
-    // @param offer_arguments Array of `uint256` that contains `ticket` as `offer_arguments[0]`,
-    //                        `nonce` as `offer_arguments[1]`, `amount` as `offer_arguments[2]`, and `reward` as
-    //                        `offer_arguments[3]`.
-    //
-    // @param payment_arguments Array of `uint256` that contains `nonce` as `payment_arguments[0]`, `gasLimit` as
-    //                          `payment_arguments[1]` and `gasPrice` as `payment_arguments[2]`.
-    //
-    function sealDaiPlusOffer(
-        address[3] calldata actors,
-        uint256[4] calldata offer_arguments,
-        uint256[3] calldata payment_arguments,
-        bytes calldata signatures
-    ) external relayerCheck(actors[2]) ticketNonceCheck(offer_arguments[0], offer_arguments[1]) {
-
-        require(signatures.length == 65 * 3, "MMv0::sealDaiPlusOffer | signatures should be 195 bytes long");
-
-        // 1. Recover Dai+ for redistribution (made soon because a lot of stack is used for this call)
-        daiplus.signedApprove(
-            [
-            actors[1],
-            address(this),
-            address(this)
-            ],
-            [
-            payment_arguments[0],
-            payment_arguments[1],
-            payment_arguments[2],
-            0,
-            offer_arguments[2] + offer_arguments[3]
-            ],
-            BytesUtil_v0.slice(signatures, 130, 65)
-        );
-
-        bytes memory seller_signature = BytesUtil_v0.slice(signatures, 0, 65);
-        bytes memory buyer_signature = BytesUtil_v0.slice(signatures, 65, 65);
-
-        DaiPlusOffer memory daiplusoffer = DaiPlusOffer({
-            auction: Auction({
-                seller: actors[0],
-                buyer: actors[1],
-                relayer: actors[2],
-                ticket: offer_arguments[0],
-                nonce: offer_arguments[1]
-                }),
-            amount: offer_arguments[2],
-            reward: offer_arguments[3]
-            });
-
-        address seller_verification = verify(daiplusoffer, seller_signature);
-        address buyer_verification = verify(daiplusoffer, buyer_signature);
-
-        require(seller_verification == actors[0], "MMv0::sealDaiPlusOffer | failed seller signature check");
-        require(buyer_verification == actors[1], "MMv0::sealDaiPlusOffer | failed buyer signature check");
-
-        // 2. Paying Seller. Takes Dai and converts it into Dai+ for seller.
-        daiplus.transferFrom(daiplusoffer.auction.buyer, daiplusoffer.auction.seller, daiplusoffer.amount);
-
-        // 3. Transfering Ticket
-        t721.transferFrom(daiplusoffer.auction.seller, daiplusoffer.auction.buyer, daiplusoffer.auction.ticket);
-
-        // 4. Paying Reward
-        if (daiplusoffer.reward > 0) {
-            daiplus.transferFrom(daiplusoffer.auction.buyer, msg.sender, daiplusoffer.reward);
+        } else {
+            revert("MMv0::verifySeal | invalid identity mode for buyer");
         }
 
-        emit SealedAuction(
-            daiplusoffer.auction.buyer,
-            daiplusoffer.auction.seller,
-            daiplusoffer.auction.ticket,
-            address(daiplus),
-            daiplusoffer.amount
-        );
+        if (nums[3] == 1) { // Seller is classic wallet
+            require(verify(mpo, seller_signature) == mpo.seller, "MMv0::verifySeal | invalid seller signature");
+        } else if (nums[3] == 2) { // Seller is smart wallet
+
+            address controller = verify(mpo, seller_signature);
+            address payable identity = address(uint160(mpo.seller));
+            require(IRefractWallet_v0(identity).isController(controller) == true,
+            "MMv0::verifySeal | invalid seller controller signature");
+
+        } else {
+            revert("MMv0::verifySeal | invalid identity mode for seller");
+        }
+
+
     }
 
+    // @notice Utility to execute ERC20 payment
+    function processERC20Payment(
+        address[] memory addr,
+        uint256[] memory nums,
+        uint256 addr_idx,
+        uint256 nums_idx
+        ) internal {
+
+        require(addr.length - addr_idx >= 1, "MMv0::processERC20Payment | invalid address argument length");
+        require(nums.length - nums_idx >= 2, "MMv0::processERC20Payment | invalid nums argument length");
+
+        IERC20(addr[addr_idx]).transferFrom(addr[0], addr[1], nums[nums_idx + 1]);
+
+    }
+
+    // @notice Utility to execute ERC2280 payment
+    function processERC2280Payment(
+        address[] memory addr,
+        uint256[] memory nums,
+        bytes memory bdata,
+        uint256 addr_idx,
+        uint256 nums_idx,
+        uint256 bdata_idx
+        ) internal {
+
+        require(addr.length - addr_idx >= 1, "MMv0::processERC2280Payment | invalid address argument length");
+        require(nums.length - nums_idx >= 2, "MMv0::processERC2280Payment | invalid nums argument length");
+        require(bdata.length - bdata_idx >= 65, "MMv0::processERC2280Payment | invalid bdata argument length");
+
+        uint256 nonce = IERC2280(addr[addr_idx]).nonceOf(addr[0]);
+
+        bytes memory mtransfer_signature = BytesUtil_v0.slice(bdata, bdata_idx, 65);
+
+        address[3] memory actors = [
+        addr[0],
+        address(this),
+        addr[1]
+        ];
+
+        uint256[5] memory txparams = [
+        nonce,
+        0,
+        0,
+        0,
+        nums[nums_idx + 1]
+        ];
+
+        IERC2280(addr[addr_idx]).signedTransfer(actors, txparams, mtransfer_signature);
+    }
+
+    // @notice Executes marketplace sealing
+    //
+    //
+    // @param addr Array containing address arguments for the marketplace sealing
+    //
+    //             ```
+    //             | buyer      | > Ticket buyer
+    //             | seller     | > Ticket seller
+    //             | currency 1 | > First currency used
+    //             | currency 2 | > Second currency used
+    //             ```
+    //
+    // @param nums Array containing uint256 arguments for the marketplace sealing
+    //
+    //             ```
+    //             | ticket_id                 | > ID of sold ticket
+    //             | nonce                     | > Nonce of marketplace seal
+    //             | buyer_mode                | > 1 for normal wallet, 2 for Refract smart wallet
+    //             | seller_mode               | > same as above
+    //             | currency_count = 2        | > Number of currency used for payment
+    //             | currency 1 mode = erc20   | \ Payment 1 configuration
+    //             | currency 1 price          | /
+    //             | currency 2 mode = erc2280 | \ Payment 2 configuration
+    //             | currency 2 price          | /
+    //             ```
+    //
+    // @param bdata Contains the signature of a controller, respecting the ERC712 standard, signing an mtx
+    //                  data structure type, followed by transaction data.
+    //
+    //             ```
+    //             | buyer_seal_signature         | > EIP712 Signature from the buyer
+    //             | seller_seal_signature        | > EIP712 Signature from the seller
+    //             | currency 2 erc2280_signature | > ERC2280 transfer signature
+    //             ```
+    function seal(address[] calldata addr, uint256[] calldata nums, bytes calldata bdata) external {
+
+        require(addr.length >= 2, "MMv0::seal | invalid address argument length");
+        require(nums.length >= 5, "MMv0::seal | invalid nums argument length");
+        require(bdata.length >= 130, "MMv0::seal | invalid bdata argument length");
+
+        require(ticket_nonces[nums[0]] == nums[1], "MMv0::seal | invalid offer nonce");
+        ticket_nonces[nums[0]] += 1;
+
+        require(t721.ownerOf(nums[0]) == addr[1], "MMv0::seal | seller is not ticket owner");
+        require(addr[1] != addr[0], "MMv0::seal | seller is also buyer");
+        require(nums[4] > 0, "MMv0::seal | invalid empty currency count");
+
+        bytes memory currencies = "";
+        bytes memory prices = "";
+
+        {
+            uint256 nums_idx = 5;
+            uint256 addr_idx = 2;
+            uint256 bdata_idx = 130;
+
+            for (uint256 idx = 0; idx < nums[4]; ++idx) {
+                if (nums[nums_idx] == 1) { // ERC20
+                    processERC20Payment(addr, nums, addr_idx, nums_idx);
+                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
+                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
+
+                    nums_idx += 2;
+                    addr_idx += 1;
+
+                } else if (nums[nums_idx] == 2) { // ERC2280
+
+                    processERC2280Payment(addr, nums, bdata, addr_idx, nums_idx, bdata_idx);
+                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
+                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
+
+                    nums_idx += 2;
+                    addr_idx += 1;
+                    bdata_idx += 65;
+
+                } else {
+                    revert("MMv0::seal | invalid payment method");
+                }
+            }
+        }
+
+        bytes memory buyer_signature = BytesUtil_v0.slice(bdata, 0, 65);
+        bytes memory seller_signature = BytesUtil_v0.slice(bdata, 65, 65);
+        MarketplaceOffer memory mpo = MarketplaceOffer({
+            buyer: addr[0],
+            seller: addr[1],
+            ticket: nums[0],
+            nonce: nums[1],
+            currencies: currencies,
+            prices: prices
+            });
+
+        if (nums[2] == 1) { // Buyer is classic wallet
+            require(verify(mpo, buyer_signature) == mpo.buyer, "MMv0::seal | invalid buyer signature");
+        } else if (nums[2] == 2) { // Buyer is smart wallet
+
+            address controller = verify(mpo, buyer_signature);
+            address payable identity = address(uint160(mpo.buyer));
+            require(IRefractWallet_v0(identity).isController(controller) == true,
+            "MMv0::seal | invalid buyer controller signature");
+
+        } else {
+            revert("MMv0::seal | invalid identity mode for buyer");
+        }
+
+        if (nums[3] == 1) { // Seller is classic wallet
+            require(verify(mpo, seller_signature) == mpo.seller, "MMv0::seal | invalid seller signature");
+        } else if (nums[3] == 2) { // Seller is smart wallet
+
+            address controller = verify(mpo, seller_signature);
+            address payable identity = address(uint160(mpo.seller));
+            require(IRefractWallet_v0(identity).isController(controller) == true,
+            "MMv0::seal | invalid seller controller signature");
+
+        } else {
+            revert("MMv0::seal | invalid identity mode for seller");
+        }
+
+        t721.transferFrom(mpo.seller, mpo.buyer, mpo.ticket);
+        emit SealedOffer(mpo.buyer, mpo.seller, mpo.ticket, mpo.nonce, currencies, prices);
+
+    }
 
 }

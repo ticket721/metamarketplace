@@ -1,16 +1,12 @@
 const {EIP712Signer} = require('@ticket721/e712');
 
-const Auction = [
-    {
-        name: 'seller',
-        type: 'address'
-    },
+const MarketplaceOffer = [
     {
         name: 'buyer',
         type: 'address'
     },
     {
-        name: 'relayer',
+        name: 'seller',
         type: 'address'
     },
     {
@@ -20,25 +16,18 @@ const Auction = [
     {
         name: 'nonce',
         type: 'uint256'
-    }
-];
-
-const DaiPlusOffer = [
-    {
-        name: 'auction',
-        type: 'Auction'
     },
     {
-        name: 'amount',
-        type: 'uint256'
+        name: 'currencies',
+        type: 'bytes'
     },
     {
-        name: 'reward',
-        type: 'uint256'
-    }
+        name: 'prices',
+        type: 'bytes'
+    },
 ];
 
-class DaiPlusOfferSigner extends EIP712Signer {
+class MarketplaceOfferSigner extends EIP712Signer {
     constructor(name, version, verifyingContract, chainId) {
         super(
             {
@@ -47,12 +36,11 @@ class DaiPlusOfferSigner extends EIP712Signer {
                 verifyingContract,
                 chainId
             },
-            ['Auction', Auction],
-            ['DaiPlusOffer', DaiPlusOffer]
+            ['MarketplaceOffer', MarketplaceOffer],
         )
     }
 }
 
 module.exports = {
-    DaiPlusOfferSigner
+    MarketplaceOfferSigner
 };

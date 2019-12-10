@@ -1,4 +1,5 @@
 const ethers = require('ethers');
+const { BigNumber } = require('ethers/utils');
 
 const expect_map = async (dai, daiplus, t721, accounts, dai_balances, daiplus_balances, t721_balances, expect) => {
 
@@ -61,8 +62,58 @@ const revert = (snap_id) => {
     })
 };
 
+const encodeU256 = (num) => {
+    const hexed = (new BigNumber(num)).toHexString().slice(2);
+    return `${"0".repeat(64 - hexed.length)}${hexed}`;
+};
+
+const getArguments = (offer) => {
+    const addr = [];
+    const nums = [];
+    let bdata = '0x';
+
+    nums.push(offer.ticket);
+    nums.push(offer.nonce);
+    nums.push(offer.buyer_mode);
+    nums.push(offer.seller_mode);
+    nums.push(offer.payments.length);
+    addr.push(offer.buyer);
+    addr.push(offer.seller);
+
+    bdata = `${bdata}${offer.buyer_signature.slice(2)}`;
+    bdata = `${bdata}${offer.seller_signature.slice(2)}`;
+
+    for (const payment of offer.payments) {
+        if (payment.mode === 1) {
+            nums.push(payment.mode);
+            nums.push(payment.price);
+            addr.push(payment.address);
+        } else if (payment.mode === 2) {
+            nums.push(payment.mode);
+            nums.push(payment.price);
+            addr.push(payment.address);
+            bdata = `${bdata}${payment.sig.slice(2)}`
+        }
+    }
+
+    return [addr, nums, bdata];
+
+};
+
+const getCurrencies = (offer) => {
+    let currencies = '0x';
+    let prices = '0x';
+
+    for (const payment of offer.payments) {
+        currencies = `${currencies}${payment.address.slice(2)}`;
+        prices = `${prices}${encodeU256(payment.price)}`;
+    }
+
+    return [currencies, prices];
+};
+
 const ZERO = '0x0000000000000000000000000000000000000000';
-const ZEROSIG = `0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000`
+const ZEROSIG = `0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000`;
 
 module.exports = {
     ZERO,
@@ -70,5 +121,8 @@ module.exports = {
     revert,
     snapshot,
     expect_map,
-    getEthersERC20Contract
+    getEthersERC20Contract,
+    encodeU256,
+    getCurrencies,
+    getArguments
 }

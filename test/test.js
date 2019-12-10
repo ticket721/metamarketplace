@@ -6,27 +6,27 @@ const expect = chai.expect;
 
 const { setScopeIndex, CONTRACT_NAME, SCOPE_NAME, CHAIN_ID } = require('../test_cases/constants');
 
-const { daioffer } = require('../test_cases/DaiOffer');
-const { daioffer_no_reward } = require('../test_cases/DaiOffer_no_reward');
-const { daioffer_invalid_signature } = require('../test_cases/DaiOffer_invalid_signature');
-const { daioffer_invalid_seller_signature } = require('../test_cases/DaiOffer_invalid_seller_signature');
-const { daioffer_invalid_buyer_signature } = require('../test_cases/DaiOffer_invalid_buyer_signature');
-const { daioffer_invalid_nonce } = require('../test_cases/DaiOffer_invalid_nonce');
-const { daioffer_allowance_too_low } = require('../test_cases/DaiOffer_allowance_too_low');
-const { daioffer_invalid_ticket_owner } = require('../test_cases/DaiOffer_invalid_ticket_owner');
-const { daioffer_no_relayer_restriction } = require('../test_cases/DaiOffer_no_relayer_restriction');
-const { daioffer_invalid_relayer } = require('../test_cases/DaiOffer_invalid_relayer');
-
-const { daiplusoffer } = require('../test_cases/DaiPlusOffer');
-const { daiplusoffer_allowance_too_low } = require('../test_cases/DaiPlusOffer_allowance_too_low');
-const { daiplusoffer_invalid_buyer_signature } = require('../test_cases/DaiPlusOffer_invalid_buyer_signature');
-const { daiplusoffer_invalid_seller_signature } = require('../test_cases/DaiPlusOffer_invalid_seller_signature');
-const { daiplusoffer_invalid_signature } = require('../test_cases/DaiPlusOffer_invalid_signature');
-const { daiplusoffer_invalid_nonce } = require('../test_cases/DaiPlusOffer_invalid_nonce');
-const { daiplusoffer_invalid_relayer } = require('../test_cases/DaiPlusOffer_invalid_relayer');
-const { daiplusoffer_invalid_ticket_owner } = require('../test_cases/DaiPlusOffer_invalid_ticket_owner');
-const { daiplusoffer_no_relayer_restriction } = require('../test_cases/DaiPlusOffer_no_relayer_restriction');
-const { daiplusoffer_no_reward } = require('../test_cases/DaiPlusOffer_no_reward');
+const {erc20_offer} = require('../test_cases/erc20_offer');
+const {erc20_offer_smart_wallets} = require('../test_cases/erc20_offer_smart_wallets');
+const {erc2280_offer} = require('../test_cases/erc2280_offer');
+const {seal_invalid_addr_length} = require('../test_cases/seal_invalid_addr_length');
+const {seal_invalid_nums_length} = require('../test_cases/seal_invalid_nums_length');
+const {seal_invalid_bdata_length} = require('../test_cases/seal_invalid_bdata_length');
+const {seal_invalid_nonce} = require('../test_cases/seal_invalid_nonce');
+const {seal_invalid_ticket_owner} = require('../test_cases/seal_invalid_ticket_owner');
+const {seal_seller_is_buyer} = require('../test_cases/seal_seller_is_buyer');
+const {seal_invalid_payment_method} = require('../test_cases/seal_invalid_payment_method');
+const {seal_invalid_currency_count} = require('../test_cases/seal_invalid_currency_count');
+const {seal_invalid_erc20_addr_length} = require('../test_cases/seal_invalid_erc20_addr_length');
+const {seal_invalid_erc2280_addr_length} = require('../test_cases/seal_invalid_erc2280_addr_length');
+const {seal_invalid_erc20_nums_length} = require('../test_cases/seal_invalid_erc20_nums_length');
+const {seal_invalid_erc2280_nums_length} = require('../test_cases/seal_invalid_erc2280_nums_length');
+const {seal_invalid_erc2280_bdata_length} = require('../test_cases/seal_invalid_erc2280_bdata_length');
+const {seal_erc20_allowance_too_low} = require('../test_cases/seal_erc20_allowance_too_low');
+const {seal_invalid_buyer_signature} = require('../test_cases/seal_invalid_buyer_signature');
+const {seal_invalid_seller_signature} = require('../test_cases/seal_invalid_seller_signature');
+const {seal_invalid_buyer_mode} = require('../test_cases/seal_invalid_buyer_mode');
+const {seal_invalid_seller_mode} = require('../test_cases/seal_invalid_seller_mode');
 
 contract('metamarketplace', (accounts) => {
 
@@ -34,12 +34,13 @@ contract('metamarketplace', (accounts) => {
         const ERC20MockArtifact = artifacts.require('ERC20Mock_v0');
         const ERC2280MockArtifact = artifacts.require('ERC2280Mock_v0');
         const ERC721MockArtifact = artifacts.require('ERC721Mock_v0');
+        const SmartWalletMockArtifact = artifacts.require('SmartWalletMock_v0');
         const MetaMarketplaceArtifact = artifacts.require(CONTRACT_NAME);
 
         const ERC20Instance = await ERC20MockArtifact.deployed();
         const ERC2280Instance = await ERC2280MockArtifact.deployed();
         const ERC721Instance = await ERC721MockArtifact.deployed();
-        const MetaMarketplaceInstance = await MetaMarketplaceArtifact.new(CHAIN_ID, ERC20Instance.address, ERC2280Instance.address, ERC721Instance.address);
+        const MetaMarketplaceInstance = await MetaMarketplaceArtifact.deployed();
 
         await ERC721Instance.createScope(SCOPE_NAME, '0x0000000000000000000000000000000000000000', [MetaMarketplaceInstance.address], []);
         const scope = await ERC721Instance.getScope(SCOPE_NAME);
@@ -49,12 +50,14 @@ contract('metamarketplace', (accounts) => {
             [CONTRACT_NAME]: MetaMarketplaceInstance,
             ERC20: ERC20Instance,
             ERC2280: ERC2280Instance,
-            ERC721: ERC721Instance
+            ERC721: ERC721Instance,
+            SmartWalletMockArtifact: SmartWalletMockArtifact
         };
 
         this.snap_id = await snapshot();
         this.accounts = accounts;
         this.expect = expect;
+        this.network_id = await web3.eth.net.getId();
     });
 
     beforeEach(async function () {
@@ -63,33 +66,29 @@ contract('metamarketplace', (accounts) => {
         this.snap_id = await snapshot();
     });
 
-    describe('DaiOffer', function () {
+    describe('MarketplaceOffer', function () {
 
-        it('100 Dai for 1 Ticket (100 Dai reward)', daioffer);
-        it('100 Dai for 1 Ticket (0 Dai reward)', daioffer_no_reward);
-        it('invalid signature (128 length)', daioffer_invalid_signature);
-        it('invalid seller signature', daioffer_invalid_seller_signature);
-        it('invalid buyer signature', daioffer_invalid_buyer_signature);
-        it('invalid nonce', daioffer_invalid_nonce);
-        it('allowance too low (amount + reward - 1)', daioffer_allowance_too_low);
-        it('invalid ticket owner', daioffer_invalid_ticket_owner);
-        it('no relayer restriction', daioffer_no_relayer_restriction);
-        it('invalid relayer', daioffer_invalid_relayer);
-
-    });
-
-    describe('DaiPlusOffer', function () {
-
-        it('100 Dai for 1 Ticket (100 Dai reward)', daiplusoffer);
-        it('100 Dai for 1 Ticket (0 Dai reward)', daiplusoffer_no_reward);
-        it('invalid signature (193 length)', daiplusoffer_invalid_signature);
-        it('invalid seller signature', daiplusoffer_invalid_seller_signature);
-        it('invalid buyer signature', daiplusoffer_invalid_buyer_signature);
-        it('invalid nonce', daiplusoffer_invalid_nonce);
-        it('allowance too low (amount + reward - 1)', daiplusoffer_allowance_too_low);
-        it('invalid ticket owner', daiplusoffer_invalid_ticket_owner);
-        it('no relayer restriction', daiplusoffer_no_relayer_restriction);
-        it('invalid relayer', daiplusoffer_invalid_relayer);
+        it('erc20 offer', erc20_offer);
+        it('erc20 offer smart wallet', erc20_offer_smart_wallets);
+        it('erc2280 offer ', erc2280_offer);
+        it('seal invalid addr length', seal_invalid_addr_length);
+        it('seal invalid nums length', seal_invalid_nums_length);
+        it('seal invalid bdata length', seal_invalid_bdata_length);
+        it('seal invalid nonce', seal_invalid_nonce);
+        it('seal invalid ticket owner', seal_invalid_ticket_owner);
+        it('seal seller is buyer', seal_seller_is_buyer);
+        it('seal invalid payment method', seal_invalid_payment_method);
+        it('seal invalid currency count', seal_invalid_currency_count);
+        it('seal invalid erc20 addr length', seal_invalid_erc20_addr_length);
+        it('seal invalid erc2280 addr length', seal_invalid_erc2280_addr_length);
+        it('seal invalid erc20 nums length', seal_invalid_erc20_nums_length);
+        it('seal invalid erc2280 nums length', seal_invalid_erc2280_nums_length);
+        it('seal invalid erc2280 bdata length', seal_invalid_erc2280_bdata_length);
+        it('seal erc20 allowance too low', seal_erc20_allowance_too_low);
+        it('seal invalid buyer signature', seal_invalid_buyer_signature);
+        it('seal invalid seller signature', seal_invalid_seller_signature);
+        it('seal invalid buyer mode', seal_invalid_buyer_mode);
+        it('seal invalid seller mode', seal_invalid_seller_mode);
 
     });
 
