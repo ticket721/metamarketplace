@@ -1,15 +1,15 @@
-const { expect_map, getEthersERC20Contract, encodeU256, getCurrencies, getArguments } = require('./utils');
+const { getCurrencies, getArguments } = require('./utils');
 const ethers = require('ethers');
 const { MarketplaceOfferSigner } = require('./MarketplaceOfferSigner');
-const {CHAIN_ID, SCOPE_INDEX, CONTRACT_NAME} = require('./constants');
+const { SCOPE_INDEX, CONTRACT_NAME} = require('./constants');
 
 module.exports = {
     erc20_offer_smart_wallets: async function erc20_offer_smart_wallets() {
 
-        const {accounts, expect, network_id} = this;
+        const {expect, network_id} = this;
 
         const MetaMarketplace = this.contracts[CONTRACT_NAME];
-        const { ERC20, ERC2280, ERC721, SmartWalletMockArtifact } = this.contracts;
+        const { ERC20, Dai, ERC721, SmartWalletMockArtifact } = this.contracts;
 
         const TicketOwnerControllerWallet = ethers.Wallet.createRandom();
         const TicketBuyerControllerWallet = ethers.Wallet.createRandom();
@@ -26,9 +26,9 @@ module.exports = {
         await ERC721.mint(TicketOwner, SCOPE_INDEX);
         const Ticket = 1;
         await ERC20.mint(TicketBuyer, BuyPrice);
-        await ERC2280.mint(TicketBuyer, BuyPrice);
+        await Dai.mint(TicketBuyer, BuyPrice);
         await TicketBuyerSmartWallet.approve(ERC20.address, MetaMarketplace.address, BuyPrice);
-        await TicketBuyerSmartWallet.approve(ERC2280.address, MetaMarketplace.address, BuyPrice);
+        await TicketBuyerSmartWallet.approve(Dai.address, MetaMarketplace.address, BuyPrice);
 
         const signer = new MarketplaceOfferSigner('MetaMarketplace', '0', MetaMarketplace.address, network_id);
 
@@ -41,7 +41,7 @@ module.exports = {
                 },
                 {
                     mode: 1,
-                    address: ERC2280.address,
+                    address: Dai.address,
                     price: BuyPrice
                 }
             ],
@@ -70,18 +70,18 @@ module.exports = {
         const [addr, nums, bdata] = getArguments(offer);
 
         expect((await ERC20.balanceOf(TicketBuyer)).toNumber()).to.equal(BuyPrice);
-        expect((await ERC2280.balanceOf(TicketBuyer)).toNumber()).to.equal(BuyPrice);
+        expect((await Dai.balanceOf(TicketBuyer)).toNumber()).to.equal(BuyPrice);
         expect((await ERC20.balanceOf(TicketOwner)).toNumber()).to.equal(0);
-        expect((await ERC2280.balanceOf(TicketOwner)).toNumber()).to.equal(0);
+        expect((await Dai.balanceOf(TicketOwner)).toNumber()).to.equal(0);
         expect((await ERC721.ownerOf(Ticket)).toLowerCase()).to.equal(TicketOwner.toLowerCase());
 
         await MetaMarketplace.verifySeal(addr, nums, bdata);
         await MetaMarketplace.seal(addr, nums, bdata);
 
         expect((await ERC20.balanceOf(TicketBuyer)).toNumber()).to.equal(0);
-        expect((await ERC2280.balanceOf(TicketBuyer)).toNumber()).to.equal(0);
+        expect((await Dai.balanceOf(TicketBuyer)).toNumber()).to.equal(0);
         expect((await ERC20.balanceOf(TicketOwner)).toNumber()).to.equal(BuyPrice);
-        expect((await ERC2280.balanceOf(TicketOwner)).toNumber()).to.equal(BuyPrice);
+        expect((await Dai.balanceOf(TicketOwner)).toNumber()).to.equal(BuyPrice);
         expect((await ERC721.ownerOf(Ticket)).toLowerCase()).to.equal(TicketBuyer.toLowerCase());
 
     }

@@ -1,7 +1,7 @@
-const { expect_map, getEthersERC20Contract, encodeU256, getCurrencies, getArguments } = require('./utils');
+const { getEthersERC20Contract, getCurrencies, getArguments } = require('./utils');
 const ethers = require('ethers');
 const { MarketplaceOfferSigner } = require('./MarketplaceOfferSigner');
-const {CHAIN_ID, SCOPE_INDEX, CONTRACT_NAME} = require('./constants');
+const {SCOPE_INDEX, CONTRACT_NAME} = require('./constants');
 
 module.exports = {
     seal_invalid_currency_count: async function seal_invalid_currency_count() {
@@ -9,17 +9,16 @@ module.exports = {
         const {accounts, expect, network_id} = this;
 
         const MetaMarketplace = this.contracts[CONTRACT_NAME];
-        const { ERC20, ERC2280, ERC721 } = this.contracts;
+        const { ERC20, Dai, ERC721 } = this.contracts;
 
         const TicketOwnerWallet = ethers.Wallet.createRandom();
         const TicketBuyerWallet = ethers.Wallet.createRandom();
 
         const EthersERC20Instance = await getEthersERC20Contract(artifacts.require('ERC20Mock_v0'), ERC20, TicketBuyerWallet);
-        const EthersERC2280Instance = await getEthersERC20Contract(artifacts.require('ERC2280Mock_v0'), ERC2280, TicketBuyerWallet);
+        const EthersDaiInstance = await getEthersERC20Contract(artifacts.require('DaiMock_v0'), Dai, TicketBuyerWallet);
 
         const TicketOwner = TicketOwnerWallet.address;
         const TicketBuyer = TicketBuyerWallet.address;
-        const AuctionRelayer = accounts[2];
 
         await web3.eth.sendTransaction({ from: accounts[0], to: TicketBuyer, value: web3.utils.toWei('1', 'ether') });
 
@@ -29,9 +28,9 @@ module.exports = {
         await ERC721.mint(TicketOwner, SCOPE_INDEX);
         const Ticket = 1;
         await ERC20.mint(TicketBuyer, BuyPrice);
-        await ERC2280.mint(TicketBuyer, BuyPrice);
+        await Dai.mint(TicketBuyer, BuyPrice);
         await EthersERC20Instance.functions.approve(MetaMarketplace.address, BuyPrice);
-        await EthersERC2280Instance.functions.approve(MetaMarketplace.address, BuyPrice);
+        await EthersDaiInstance.functions.approve(MetaMarketplace.address, BuyPrice);
 
         const signer = new MarketplaceOfferSigner('MetaMarketplace', '0', MetaMarketplace.address, network_id);
 
@@ -44,7 +43,7 @@ module.exports = {
                 },
                 {
                     mode: 1,
-                    address: ERC2280.address,
+                    address: Dai.address,
                     price: BuyPrice
                 }
             ],

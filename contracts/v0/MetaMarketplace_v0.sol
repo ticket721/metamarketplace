@@ -47,53 +47,19 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
     }
 
     // @notice Utility to verify ERC20 payment parameters
-    function verifyERC20Payment(
+    function verifyPayment(
         address[] memory addr,
         uint256[] memory nums,
         uint256 addr_idx,
         uint256 nums_idx
-        ) internal view {
+    ) internal view {
 
-        require(addr.length - addr_idx >= 1, "MMv0::verifyERC20Payment | invalid address argument length");
-        require(nums.length - nums_idx >= 2, "MMv0::verifyERC20Payment | invalid nums argument length");
+        require(addr.length - addr_idx >= 1, "MMv0::verifyPayment | invalid address argument length");
+        require(nums.length - nums_idx >= 1, "MMv0::verifyPayment | invalid nums argument length");
 
-        require(IERC20(addr[addr_idx]).allowance(addr[0], address(this)) >= nums[nums_idx + 1],
-        "MMv0::verifyERC20Payment | allowance too low");
+        require(IERC20(addr[addr_idx]).allowance(addr[0], address(this)) >= nums[nums_idx],
+            "MMv0::verifyPayment | allowance too low");
 
-    }
-
-    // @notice Utility to verify ERC2280 payment parameters
-    function verifyERC2280Payment(
-        address[] memory addr,
-        uint256[] memory nums,
-        bytes memory bdata,
-        uint256 addr_idx,
-        uint256 nums_idx,
-        uint256 bdata_idx) internal view {
-
-        require(addr.length - addr_idx >= 1, "MMv0::verifyERC2280Payment | invalid address argument length");
-        require(nums.length - nums_idx >= 2, "MMv0::verifyERC2280Payment | invalid nums argument length");
-        require(bdata.length - bdata_idx >= 65, "MMv0::verifyERC2280Payment | invalid bdata argument length");
-
-        uint256 nonce = IERC2280(addr[addr_idx]).nonceOf(addr[0]);
-
-        bytes memory mtransfer_signature = BytesUtil_v0.slice(bdata, bdata_idx, 65);
-
-        address[3] memory actors = [
-        addr[0],
-        address(this),
-        addr[1]
-        ];
-
-        uint256[5] memory txparams = [
-        nonce,
-        0,
-        0,
-        0,
-        nums[nums_idx + 1]
-        ];
-
-        IERC2280(addr[addr_idx]).verifyTransfer(actors, txparams, mtransfer_signature);
     }
 
     // @notice Utility to verify marketplace offer sealing
@@ -116,10 +82,8 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
     //             | buyer_mode                | > 1 for normal wallet, 2 for Refract smart wallet
     //             | seller_mode               | > same as above
     //             | currency_count = 2        | > Number of currency used for payment
-    //             | currency 1 mode = erc20   | \ Payment 1 configuration
-    //             | currency 1 price          | /
-    //             | currency 2 mode = erc2280 | \ Payment 2 configuration
-    //             | currency 2 price          | /
+    //             | currency 1 price          |
+    //             | currency 2 price          |
     //             ```
     //
     // @param bdata Contains the signature of a controller, respecting the ERC712 standard, signing an mtx
@@ -128,7 +92,6 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
     //             ```
     //             | buyer_seal_signature         | > EIP712 Signature from the buyer
     //             | seller_seal_signature        | > EIP712 Signature from the seller
-    //             | currency 2 erc2280_signature | > ERC2280 transfer signature
     //             ```
     function verifySeal(address[] calldata addr, uint256[] calldata nums, bytes calldata bdata) external view {
 
@@ -151,27 +114,14 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
             uint256 bdata_idx = 130;
 
             for (uint256 idx = 0; idx < nums[4]; ++idx) {
-                if (nums[nums_idx] == 1) { // ERC20
-                    verifyERC20Payment(addr, nums, addr_idx, nums_idx);
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
-                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
 
-                    nums_idx += 2;
-                    addr_idx += 1;
+                verifyPayment(addr, nums, addr_idx, nums_idx);
+                prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx]));
+                currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
 
-                } else if (nums[nums_idx] == 2) { // ERC2280
+                nums_idx += 1;
+                addr_idx += 1;
 
-                    verifyERC2280Payment(addr, nums, bdata, addr_idx, nums_idx, bdata_idx);
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
-                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
-
-                    nums_idx += 2;
-                    addr_idx += 1;
-                    bdata_idx += 65;
-
-                } else {
-                    revert("MMv0::verifySeal | invalid payment method");
-                }
             }
         }
 
@@ -193,7 +143,7 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
             address controller = verify(mpo, buyer_signature);
             address payable identity = address(uint160(mpo.buyer));
             require(IRefractWallet_v0(identity).isController(controller) == true,
-            "MMv0::verifySeal | invalid buyer controller signature");
+                "MMv0::verifySeal | invalid buyer controller signature");
 
         } else {
             revert("MMv0::verifySeal | invalid identity mode for buyer");
@@ -206,7 +156,7 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
             address controller = verify(mpo, seller_signature);
             address payable identity = address(uint160(mpo.seller));
             require(IRefractWallet_v0(identity).isController(controller) == true,
-            "MMv0::verifySeal | invalid seller controller signature");
+                "MMv0::verifySeal | invalid seller controller signature");
 
         } else {
             revert("MMv0::verifySeal | invalid identity mode for seller");
@@ -216,53 +166,18 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
     }
 
     // @notice Utility to execute ERC20 payment
-    function processERC20Payment(
+    function processPayment(
         address[] memory addr,
         uint256[] memory nums,
         uint256 addr_idx,
         uint256 nums_idx
-        ) internal {
+    ) internal {
 
-        require(addr.length - addr_idx >= 1, "MMv0::processERC20Payment | invalid address argument length");
-        require(nums.length - nums_idx >= 2, "MMv0::processERC20Payment | invalid nums argument length");
+        require(addr.length - addr_idx >= 1, "MMv0::processPayment | invalid address argument length");
+        require(nums.length - nums_idx >= 1, "MMv0::processPayment | invalid nums argument length");
 
-        IERC20(addr[addr_idx]).transferFrom(addr[0], addr[1], nums[nums_idx + 1]);
+        IERC20(addr[addr_idx]).transferFrom(addr[0], addr[1], nums[nums_idx]);
 
-    }
-
-    // @notice Utility to execute ERC2280 payment
-    function processERC2280Payment(
-        address[] memory addr,
-        uint256[] memory nums,
-        bytes memory bdata,
-        uint256 addr_idx,
-        uint256 nums_idx,
-        uint256 bdata_idx
-        ) internal {
-
-        require(addr.length - addr_idx >= 1, "MMv0::processERC2280Payment | invalid address argument length");
-        require(nums.length - nums_idx >= 2, "MMv0::processERC2280Payment | invalid nums argument length");
-        require(bdata.length - bdata_idx >= 65, "MMv0::processERC2280Payment | invalid bdata argument length");
-
-        uint256 nonce = IERC2280(addr[addr_idx]).nonceOf(addr[0]);
-
-        bytes memory mtransfer_signature = BytesUtil_v0.slice(bdata, bdata_idx, 65);
-
-        address[3] memory actors = [
-        addr[0],
-        address(this),
-        addr[1]
-        ];
-
-        uint256[5] memory txparams = [
-        nonce,
-        0,
-        0,
-        0,
-        nums[nums_idx + 1]
-        ];
-
-        IERC2280(addr[addr_idx]).signedTransfer(actors, txparams, mtransfer_signature);
     }
 
     // @notice Executes marketplace sealing
@@ -285,9 +200,7 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
     //             | buyer_mode                | > 1 for normal wallet, 2 for Refract smart wallet
     //             | seller_mode               | > same as above
     //             | currency_count = 2        | > Number of currency used for payment
-    //             | currency 1 mode = erc20   | \ Payment 1 configuration
     //             | currency 1 price          | /
-    //             | currency 2 mode = erc2280 | \ Payment 2 configuration
     //             | currency 2 price          | /
     //             ```
     //
@@ -297,7 +210,6 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
     //             ```
     //             | buyer_seal_signature         | > EIP712 Signature from the buyer
     //             | seller_seal_signature        | > EIP712 Signature from the seller
-    //             | currency 2 erc2280_signature | > ERC2280 transfer signature
     //             ```
     function seal(address[] calldata addr, uint256[] calldata nums, bytes calldata bdata) external {
 
@@ -321,27 +233,14 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
             uint256 bdata_idx = 130;
 
             for (uint256 idx = 0; idx < nums[4]; ++idx) {
-                if (nums[nums_idx] == 1) { // ERC20
-                    processERC20Payment(addr, nums, addr_idx, nums_idx);
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
-                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
 
-                    nums_idx += 2;
-                    addr_idx += 1;
+                processPayment(addr, nums, addr_idx, nums_idx);
+                prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx]));
+                currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
 
-                } else if (nums[nums_idx] == 2) { // ERC2280
+                nums_idx += 1;
+                addr_idx += 1;
 
-                    processERC2280Payment(addr, nums, bdata, addr_idx, nums_idx, bdata_idx);
-                    prices = BytesUtil_v0.concat(prices, BytesUtil_v0.toBytes(nums[nums_idx + 1]));
-                    currencies = BytesUtil_v0.concat(currencies, BytesUtil_v0.toBytes(addr[addr_idx]));
-
-                    nums_idx += 2;
-                    addr_idx += 1;
-                    bdata_idx += 65;
-
-                } else {
-                    revert("MMv0::seal | invalid payment method");
-                }
             }
         }
 
@@ -363,7 +262,7 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
             address controller = verify(mpo, buyer_signature);
             address payable identity = address(uint160(mpo.buyer));
             require(IRefractWallet_v0(identity).isController(controller) == true,
-            "MMv0::seal | invalid buyer controller signature");
+                "MMv0::seal | invalid buyer controller signature");
 
         } else {
             revert("MMv0::seal | invalid identity mode for buyer");
@@ -376,7 +275,7 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
             address controller = verify(mpo, seller_signature);
             address payable identity = address(uint160(mpo.seller));
             require(IRefractWallet_v0(identity).isController(controller) == true,
-            "MMv0::seal | invalid seller controller signature");
+                "MMv0::seal | invalid seller controller signature");
 
         } else {
             revert("MMv0::seal | invalid identity mode for seller");
