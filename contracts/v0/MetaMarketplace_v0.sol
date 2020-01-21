@@ -2,7 +2,6 @@ pragma solidity 0.5.15;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
-import "erc2280/contracts/IERC2280.sol";
 import "./MetaMarketplaceDomain_v0.sol";
 import "./BytesUtil_v0.sol";
 import "./IRefractWallet_v0.sol";
