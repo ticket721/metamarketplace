@@ -26,17 +26,6 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
         t721 = IERC721(_t721);
     }
 
-    modifier ticketNonceCheck(uint256 ticket, uint256 nonce) {
-        require(ticket_nonces[ticket] == nonce, "MMv0::ticketNonceCheck | invalid nonce for ticket offer");
-        ticket_nonces[ticket] += 1;
-        _;
-    }
-
-    modifier relayerCheck(address relayer) {
-        require(relayer == msg.sender || relayer == address(0), "MMv0::relayerCheck | invalid relayer");
-        _;
-    }
-
     // @notice Recover the current ticket nonce
     //
     // @param ticket Get the nonce of provided ticket ID
