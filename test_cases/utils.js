@@ -84,16 +84,8 @@ const getArguments = (offer) => {
     bdata = `${bdata}${offer.seller_signature.slice(2)}`;
 
     for (const payment of offer.payments) {
-        if (payment.mode === 1) {
-            nums.push(payment.mode);
             nums.push(payment.price);
             addr.push(payment.address);
-        } else if (payment.mode === 2) {
-            nums.push(payment.mode);
-            nums.push(payment.price);
-            addr.push(payment.address);
-            bdata = `${bdata}${payment.sig.slice(2)}`
-        }
     }
 
     return [addr, nums, bdata];

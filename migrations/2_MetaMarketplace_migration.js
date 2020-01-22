@@ -2,7 +2,7 @@ const config = require('../truffle-config');
 const MetaMarketplace_v0 = artifacts.require("MetaMarketplace_v0");
 const ERC20Mock_v0 = artifacts.require("ERC20Mock_v0");
 const ERC721Mock_v0 = artifacts.require("ERC721Mock_v0");
-const ERC2280Mock_v0 = artifacts.require("ERC2280Mock_v0");
+const DaiMock_v0 = artifacts.require("DaiMock_v0");
 
 const hasArtifact = (name) => {
     return (config && config.artifacts
@@ -37,7 +37,7 @@ module.exports = async function(deployer, networkName, accounts) {
         await deployer.deploy(ERC20Mock_v0);
         const ERC20Instance = await ERC20Mock_v0.deployed();
 
-        await deployer.deploy(ERC2280Mock_v0, ERC20Instance.address);
+        await deployer.deploy(DaiMock_v0);
 
         await deployer.deploy(ERC721Mock_v0);
         const ERC721Instance = await ERC721Mock_v0.deployed();

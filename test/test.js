@@ -8,20 +8,15 @@ const { setScopeIndex, CONTRACT_NAME, SCOPE_NAME, CHAIN_ID } = require('../test_
 
 const {erc20_offer} = require('../test_cases/erc20_offer');
 const {erc20_offer_smart_wallets} = require('../test_cases/erc20_offer_smart_wallets');
-const {erc2280_offer} = require('../test_cases/erc2280_offer');
 const {seal_invalid_addr_length} = require('../test_cases/seal_invalid_addr_length');
 const {seal_invalid_nums_length} = require('../test_cases/seal_invalid_nums_length');
 const {seal_invalid_bdata_length} = require('../test_cases/seal_invalid_bdata_length');
 const {seal_invalid_nonce} = require('../test_cases/seal_invalid_nonce');
 const {seal_invalid_ticket_owner} = require('../test_cases/seal_invalid_ticket_owner');
 const {seal_seller_is_buyer} = require('../test_cases/seal_seller_is_buyer');
-const {seal_invalid_payment_method} = require('../test_cases/seal_invalid_payment_method');
 const {seal_invalid_currency_count} = require('../test_cases/seal_invalid_currency_count');
 const {seal_invalid_erc20_addr_length} = require('../test_cases/seal_invalid_erc20_addr_length');
-const {seal_invalid_erc2280_addr_length} = require('../test_cases/seal_invalid_erc2280_addr_length');
 const {seal_invalid_erc20_nums_length} = require('../test_cases/seal_invalid_erc20_nums_length');
-const {seal_invalid_erc2280_nums_length} = require('../test_cases/seal_invalid_erc2280_nums_length');
-const {seal_invalid_erc2280_bdata_length} = require('../test_cases/seal_invalid_erc2280_bdata_length');
 const {seal_erc20_allowance_too_low} = require('../test_cases/seal_erc20_allowance_too_low');
 const {seal_invalid_buyer_signature} = require('../test_cases/seal_invalid_buyer_signature');
 const {seal_invalid_seller_signature} = require('../test_cases/seal_invalid_seller_signature');
@@ -32,13 +27,13 @@ contract('metamarketplace', (accounts) => {
 
     before(async function () {
         const ERC20MockArtifact = artifacts.require('ERC20Mock_v0');
-        const ERC2280MockArtifact = artifacts.require('ERC2280Mock_v0');
+        const DaiMockArtifact = artifacts.require('DaiMock_v0');
         const ERC721MockArtifact = artifacts.require('ERC721Mock_v0');
         const SmartWalletMockArtifact = artifacts.require('SmartWalletMock_v0');
         const MetaMarketplaceArtifact = artifacts.require(CONTRACT_NAME);
 
         const ERC20Instance = await ERC20MockArtifact.deployed();
-        const ERC2280Instance = await ERC2280MockArtifact.deployed();
+        const DaiInstance = await DaiMockArtifact.deployed();
         const ERC721Instance = await ERC721MockArtifact.deployed();
         const MetaMarketplaceInstance = await MetaMarketplaceArtifact.deployed();
 
@@ -49,7 +44,7 @@ contract('metamarketplace', (accounts) => {
         this.contracts = {
             [CONTRACT_NAME]: MetaMarketplaceInstance,
             ERC20: ERC20Instance,
-            ERC2280: ERC2280Instance,
+            Dai: DaiInstance,
             ERC721: ERC721Instance,
             SmartWalletMockArtifact: SmartWalletMockArtifact
         };
@@ -70,20 +65,15 @@ contract('metamarketplace', (accounts) => {
 
         it('erc20 offer', erc20_offer);
         it('erc20 offer smart wallet', erc20_offer_smart_wallets);
-        it('erc2280 offer ', erc2280_offer);
         it('seal invalid addr length', seal_invalid_addr_length);
         it('seal invalid nums length', seal_invalid_nums_length);
         it('seal invalid bdata length', seal_invalid_bdata_length);
         it('seal invalid nonce', seal_invalid_nonce);
         it('seal invalid ticket owner', seal_invalid_ticket_owner);
         it('seal seller is buyer', seal_seller_is_buyer);
-        it('seal invalid payment method', seal_invalid_payment_method);
         it('seal invalid currency count', seal_invalid_currency_count);
         it('seal invalid erc20 addr length', seal_invalid_erc20_addr_length);
-        it('seal invalid erc2280 addr length', seal_invalid_erc2280_addr_length);
         it('seal invalid erc20 nums length', seal_invalid_erc20_nums_length);
-        it('seal invalid erc2280 nums length', seal_invalid_erc2280_nums_length);
-        it('seal invalid erc2280 bdata length', seal_invalid_erc2280_bdata_length);
         it('seal erc20 allowance too low', seal_erc20_allowance_too_low);
         it('seal invalid buyer signature', seal_invalid_buyer_signature);
         it('seal invalid seller signature', seal_invalid_seller_signature);
