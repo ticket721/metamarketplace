@@ -36,7 +36,9 @@
         "test:editorconfig": "editorconfig-cli",
         "test:lint": "solhint contracts/**/*.sol",
         "coverage:upload": "cat ./coverage/lcov.info | coveralls",
-        "test": "npm run test:truffle"
+        "test": "npm run test:truffle",
+        "@lerna/postinstall": "echo '@contracts/metamarketplace has no postinstall'",
+        "@lerna/postclean": "echo '@contracts/metamarketplace has no postclean'"
     },
     "repository": {
         "type": "git",
