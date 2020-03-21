@@ -3,7 +3,7 @@ const ethers = require('ethers');
 const { SCOPE_INDEX, CONTRACT_NAME } = require('../test/constants');
 
 module.exports = {
-    sealSale_missing_uints_for_sale: async function sealSale_missing_uints_for_sale() {
+    sealSale_for_free: async function sealSale_for_free() {
 
         const { accounts, expect, network_id } = this;
 
@@ -16,25 +16,14 @@ module.exports = {
         const eventControllerWallet = ethers.Wallet.createRandom();
         const uuid = 'c4758045-fe85-4935-8e2e-fab04966907d'.toLowerCase();
 
-        const payments = [{
-            currency: ERC20.address,
-            amount: 1000,
-            fee: 100
-        }, {
-            currency: Dai.address,
-            amount: 1000,
-            fee: 100
-        }];
+        const payments = [];
 
         await ERC721.mint(seller.address, SCOPE_INDEX, {from: accounts[8]});
         const ticket_id = await ERC721.tokenOfOwnerByIndex(seller.address, 0);
         const nonce = await MetaMarketplace.getNonce(ticket_id);
 
-        await Dai.mintApprove(buyer.address, 1100, MetaMarketplace.address, 1100);
-        await ERC20.mintApprove(buyer.address, 1100, MetaMarketplace.address, 1100);
-
-        expect((await Dai.balanceOf(buyer.address)).toNumber()).to.equal(1100);
-        expect((await ERC20.balanceOf(buyer.address)).toNumber()).to.equal(1100);
+        expect((await Dai.balanceOf(buyer.address)).toNumber()).to.equal(0);
+        expect((await ERC20.balanceOf(buyer.address)).toNumber()).to.equal(0);
         expect((await Dai.balanceOf(seller.address)).toNumber()).to.equal(0);
         expect((await ERC20.balanceOf(seller.address)).toNumber()).to.equal(0);
         expect((await Dai.balanceOf(fee_collector)).toNumber()).to.equal(0);
@@ -46,7 +35,15 @@ module.exports = {
 
         const [id, uints, addr, bs] = await generateSealSalePayload(uuid, payments, ticket_id, nonce, buyer, seller, eventControllerWallet, fee_collector, signer, MetaMarketplace.address);
 
-        await expect(MetaMarketplace.sealSale(id, uints.slice(0, 5), addr, bs)).to.eventually.be.rejectedWith('MM::sealSale | not enough space on uints (2)');
+        await MetaMarketplace.sealSale(id, uints, addr, bs);
 
+        expect((await Dai.balanceOf(buyer.address)).toNumber()).to.equal(0);
+        expect((await ERC20.balanceOf(buyer.address)).toNumber()).to.equal(0);
+        expect((await Dai.balanceOf(seller.address)).toNumber()).to.equal(0);
+        expect((await ERC20.balanceOf(seller.address)).toNumber()).to.equal(0);
+        expect((await Dai.balanceOf(fee_collector)).toNumber()).to.equal(0);
+        expect((await ERC20.balanceOf(fee_collector)).toNumber()).to.equal(0);
+        expect((await ERC721.balanceOf(buyer.address)).toNumber()).to.equal(1);
+        expect((await ERC721.balanceOf(seller.address)).toNumber()).to.equal(0);
     },
 };

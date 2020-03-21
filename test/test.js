@@ -8,10 +8,12 @@ const { setScopeIndex, CONTRACT_NAME, SCOPE_NAME, CHAIN_ID } = require('./consta
 
 const { getNonce } = require('../test_cases/getNonce');
 const { sealSale } = require('../test_cases/sealSale');
+const { sealSale_for_free } = require('../test_cases/sealSale_for_free');
 const { sealSale_missing_actor_addresses } = require('../test_cases/sealSale_missing_actor_addresses');
 const { sealSale_missing_currency_number } = require('../test_cases/sealSale_missing_currency_number');
 const { sealSale_missing_addr_for_payment } = require('../test_cases/sealSale_missing_addr_for_payment');
 const { sealSale_missing_uints_for_sale } = require('../test_cases/sealSale_missing_uints_for_sale');
+const { sealSale_missing_uints_for_payment } = require('../test_cases/sealSale_missing_uints_for_payment');
 const { sealSale_missing_signatures } = require('../test_cases/sealSale_missing_signatures');
 const { sealSale_invalid_buyer_signature } = require('../test_cases/sealSale_invalid_buyer_signature');
 const { sealSale_invalid_seller_signature } = require('../test_cases/sealSale_invalid_seller_signature');
@@ -75,10 +77,12 @@ contract('metamarketplace', (accounts) => {
         describe('sealSale', function() {
 
             it('sealSale', sealSale);
+            it('sealSale for free', sealSale_for_free);
             it('sealSale missing actor addresses', sealSale_missing_actor_addresses);
             it('sealSale missing currency number', sealSale_missing_currency_number);
             it('sealSale missing addr for payment', sealSale_missing_addr_for_payment);
             it('sealSale missing uints for sale', sealSale_missing_uints_for_sale);
+            it('sealSale missing uints for payment', sealSale_missing_uints_for_payment);
             it('sealSale missing signatures', sealSale_missing_signatures);
             it('sealSale invalid buyer signature', sealSale_invalid_buyer_signature);
             it('sealSale invalid seller signature', sealSale_invalid_seller_signature);

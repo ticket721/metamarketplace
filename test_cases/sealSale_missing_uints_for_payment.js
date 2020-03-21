@@ -3,7 +3,7 @@ const ethers = require('ethers');
 const { SCOPE_INDEX, CONTRACT_NAME } = require('../test/constants');
 
 module.exports = {
-    sealSale_missing_uints_for_sale: async function sealSale_missing_uints_for_sale() {
+    sealSale_missing_uints_for_payment: async function sealSale_missing_uints_for_payment() {
 
         const { accounts, expect, network_id } = this;
 
@@ -46,7 +46,7 @@ module.exports = {
 
         const [id, uints, addr, bs] = await generateSealSalePayload(uuid, payments, ticket_id, nonce, buyer, seller, eventControllerWallet, fee_collector, signer, MetaMarketplace.address);
 
-        await expect(MetaMarketplace.sealSale(id, uints.slice(0, 5), addr, bs)).to.eventually.be.rejectedWith('MM::sealSale | not enough space on uints (2)');
+        await expect(MetaMarketplace.sealSale(id, uints.slice(0, 1), addr, bs)).to.eventually.be.rejectedWith('MM::sealSale | not enough space on uints (1)');
 
     },
 };

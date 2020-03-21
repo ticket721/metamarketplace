@@ -162,7 +162,7 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
 
         }
 
-        require(uints.length - uints_idx == 2, "MM:sealSale | not enough space on uints (2)");
+        require(uints.length - uints_idx == 2, "MM::sealSale | not enough space on uints (2)");
 
         uint256 ticket_id = uints[uints_idx];
         uint256 nonce = uints[uints_idx + 1];
