@@ -14,8 +14,4 @@ contract SmartWalletMock_v0 {
         return controller == _controller;
     }
 
-    function approve(address _currency, address _target, uint256 _amount) public {
-        IERC20(_currency).approve(_target, _amount);
-    }
-
 }

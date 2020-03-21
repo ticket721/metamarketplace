@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721Enumerable.sol";
 
 /**
-* @notice The goal here is not to reproduce the TicketForge. A basic ERC721 should work.
+* @notice The goal here is not to reproduce the ERC721Mock_v0. A basic ERC721 should work.
 *         The important part is the ability to have immutable transfer admins.
 *
 */
@@ -20,6 +20,7 @@ contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
         bool exists;
         mapping (address => bool) transfer_admins;
         mapping (address => bool) mint_admins;
+        bool user_exchangeable;
         address tokenuri_provider;
         uint256 index;
     }
@@ -30,13 +31,15 @@ contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
 
     mapping (string => Scope)   private scopes;
     string[]                    private scopeByIndex;
-    uint256                     private ticket_id_counter = 1;
+    mapping (address => uint256) public mint_nonce;
     mapping (uint256 => Ticket) private ticketInfos;
+    mapping (uint256 => string) private ticketURIs;
+    string                      private _name;
+    string                      private _symbol;
 
-    modifier mintCheck(uint256 scopeIndex) {
-        require(scopeByIndexExists(scopeIndex), "TicketForge::mint | invalid scope for ticket minting");
-        require(isAllowedMinter(scopeIndex, msg.sender), "TicketForge::mint | unauthorized minter");
-        _;
+    constructor() public {
+        _name = "ERC721";
+        _symbol = "E721";
     }
 
     /**
@@ -80,6 +83,28 @@ contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
     }
 
     /**
+     *  @notice Utility to recover ERC-721 Metadata Name
+     *
+     */
+    function name() external view returns (string memory) {
+        return _name;
+    }
+
+    /**
+     *  @notice Utility to recover ERC-721 Metadata Symbol
+     *
+     */
+    function symbol() external view returns (string memory) {
+        return _symbol;
+    }
+
+    modifier mintCheck(uint256 scopeIndex) {
+        require(scopeByIndexExists(scopeIndex), "ERC721Mock_v0::mint | invalid scope for ticket minting");
+        require(isAllowedMinter(scopeIndex, msg.sender), "ERC721Mock_v0::mint | unauthorized minter");
+        _;
+    }
+
+    /**
      *  @notice Creates an immutable scope. Define transfer admins that can trigger any transfers
      *          on any user's behalf. This is meant to delegate logics like marketplaces to other
      *          contracts. Do not use this to set wallets as admins ...
@@ -99,22 +124,26 @@ contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
      *
      *  @param transfer_admins Array of addresses. They all become transfer admins for the scope's tickets. This
      *                         means they can trigger any transfers. Made to be used on contracts like marketplaces.
-     *                         Use at your own risk on wallets ...
      *
+     *  @param mint_admins Array of address allowed to mint tickets
+     *
+     *  @param user_exchangeable True if users can exchange tickets outside of the allowed transfer contracts
      */
     function createScope(
         string calldata scope_name,
         address tokenuri_provider,
         address[] calldata transfer_admins,
-        address[] calldata mint_admins
+        address[] calldata mint_admins,
+        bool user_exchangeable
     ) external {
         require(verifyScopeName(scope_name) == true,
-            "TicketForge::createScope | name empty or with invalid characters");
+            "ERC721Mock_v0::createScope | name empty or with invalid characters");
         require(scopes[scope_name].exists == false,
-            "TicketForge::createScope | scope name already in use");
+            "ERC721Mock_v0::createScope | scope name already in use");
 
         scopes[scope_name].exists = true;
         scopes[scope_name].tokenuri_provider = tokenuri_provider;
+        scopes[scope_name].user_exchangeable = user_exchangeable;
 
         for (uint idx = 0; idx < transfer_admins.length; ++idx) {
             scopes[scope_name].transfer_admins[transfer_admins[idx]] = true;
@@ -132,18 +161,76 @@ contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
     }
 
     /**
+     * @notice Retrieves the current mint nonce of an address
+     *
+     * @param owner Address to check
+     */
+    function getMintNonce(address owner) public view returns (uint256) {
+        return mint_nonce[owner];
+    }
+
+    /**
+     * @notice Generates the deterministic mint ID for an owner
+     *
+     * @param owner Address of initial token owner
+     * @param _mint_nonce Nonce of owner mintings
+     */
+    function getTokenID(address owner, uint256 _mint_nonce) public pure returns (uint256) {
+
+        bytes32 hash = keccak256(
+            abi.encodePacked(
+                owner,
+                _mint_nonce
+            )
+        );
+
+        return uint256(hash);
+    }
+
+    /**
      *  @notice Create a new ERC-721 token assigned to given address, under specified scope
      *
      *  @param to Address of initial owner
      *  @param scopeIndex Index of desired scope
-     *
      */
-    function mint(address to, uint256 scopeIndex) external mintCheck(scopeIndex) {
-        _mint(to, ticket_id_counter);
-        ticketInfos[ticket_id_counter] = Ticket({scope: scopeIndex});
-        emit Mint(scopeByIndex[scopeIndex], to, msg.sender, ticket_id_counter);
-        emit Transfer(msg.sender, to, ticket_id_counter);
-        ++ticket_id_counter;
+    function mint(address to, uint256 scopeIndex)
+    external
+    mintCheck(scopeIndex)
+    returns (uint256) {
+
+        uint256 id = getTokenID(to, mint_nonce[to]);
+
+        _mint(to, id);
+        ticketInfos[id] = Ticket({scope: scopeIndex});
+        emit Mint(scopeByIndex[scopeIndex], to, msg.sender, id);
+        emit Transfer(msg.sender, to, id);
+        ++mint_nonce[to];
+
+        return id;
+    }
+
+    /**
+     *  @notice Creates a new ERC-721 token assigned to given address, under specified scope. Also
+     *          assigns given token uri.
+     *
+     *  @param to Address of initial owner
+     *  @param scopeIndex Index of desired scope
+     *  @param tokenUri Token Uri to assign to new token
+     */
+    function mint(address to, uint256 scopeIndex, string calldata tokenUri)
+    external
+    mintCheck(scopeIndex)
+    returns (uint256) {
+        uint256 id = getTokenID(to, mint_nonce[to]);
+
+        _mint(to, id);
+        ticketInfos[id] = Ticket({scope: scopeIndex});
+        ticketURIs[id] = tokenUri;
+        emit Mint(scopeByIndex[scopeIndex], to, msg.sender, id);
+        emit Transfer(msg.sender, to, id);
+        ++mint_nonce[to];
+
+        return id;
     }
 
     /**
@@ -156,10 +243,14 @@ contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
      * @param ticketId uint256 ID of the token to be transferred
      */
     function transferFrom(address from, address to, uint256 ticketId) public {
-        //solhint-disable-next-line max-line-length
-        require(_isApprovedOrOwnerOrScopeAdmin(msg.sender, ticketId), "ERC721: transfer caller is not owner, approved or scope admin");
+        require(_isTransferLegal(msg.sender, from, ticketId),
+            "ERC721: transfer is illegal with given scope and parameters");
 
-        _transferFrom(from, to, ticketId);
+        if (_isTransferAdmin(msg.sender, ticketId)) {
+            ERC721._transferFrom(from, to, ticketId);
+        } else {
+            ERC721.transferFrom(from, to, ticketId);
+        }
     }
 
     /**
@@ -175,7 +266,7 @@ contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
      * @param ticketId uint256 ID of the token to be transferred
      */
     function safeTransferFrom(address from, address to, uint256 ticketId) public {
-        safeTransferFrom(from, to, ticketId, "");
+        ERC721Mock_v0.safeTransferFrom(from, to, ticketId, "");
     }
 
     /**
@@ -192,7 +283,7 @@ contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
      * @param _data bytes data to send along with a safe transfer check
      */
     function safeTransferFrom(address from, address to, uint256 ticketId, bytes memory _data) public {
-        transferFrom(from, to, ticketId);
+        ERC721Mock_v0.transferFrom(from, to, ticketId);
         require(_checkOnERC721Received(from, to, ticketId, _data),
             "ERC721: transfer to non ERC721Receiver implementer");
     }
@@ -214,11 +305,13 @@ contract ERC721Mock_v0 is ERC721, ERC721Enumerable {
         return true;
     }
 
-    function _isApprovedOrOwnerOrScopeAdmin(address owner, uint256 ticketId) internal view returns (bool) {
-        if (_isApprovedOrOwner(owner, ticketId)) {
-            return true;
-        }
-        return scopes[scopeByIndex[ticketInfos[ticketId].scope]].transfer_admins[owner];
+    function _isTransferLegal(address caller, address from, uint256 ticketId) internal view returns (bool) {
+        return scopes[scopeByIndex[ticketInfos[ticketId].scope]].user_exchangeable
+        || scopes[scopeByIndex[ticketInfos[ticketId].scope]].transfer_admins[caller];
+    }
+
+    function _isTransferAdmin(address caller, uint256 ticketId) internal view returns (bool) {
+        return scopes[scopeByIndex[ticketInfos[ticketId].scope]].transfer_admins[caller];
     }
 
     function scopeByIndexExists(uint256 index) internal view returns (bool) {

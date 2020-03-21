@@ -56,39 +56,33 @@ contract MetaMarketplaceDomain_v0 {
 
     bytes32 DOMAIN_SEPARATOR;
 
-    struct MarketplaceOffer {
-        address buyer;
-        address seller;
-        uint256 ticket;
-        uint256 nonce;
-        bytes currencies;
-        bytes prices;
+    struct Authorization {
+        address emitter;
+        address grantee;
+        bytes32 hash;
     }
 
-    bytes32 constant MARKETPLACEOFFER_TYPEHASH = keccak256(
-    // solhint-disable-next-line max-line-length
-        "MarketplaceOffer(address buyer,address seller,uint256 ticket,uint256 nonce,bytes currencies,bytes prices)"
+    bytes32 constant AUTHORIZATION_TYPEHASH = keccak256(
+        "Authorization(address emitter,address grantee,bytes32 hash)"
     );
 
-    function hash(MarketplaceOffer memory mpo) internal pure returns (bytes32) {
+    function hash(Authorization memory auth) internal pure returns (bytes32) {
         return keccak256(abi.encode(
-                MARKETPLACEOFFER_TYPEHASH,
-                mpo.buyer,
-                mpo.seller,
-                mpo.ticket,
-                mpo.nonce,
-                keccak256(mpo.currencies),
-                keccak256(mpo.prices)
+                AUTHORIZATION_TYPEHASH,
+                auth.emitter,
+                auth.grantee,
+                auth.hash
             ));
     }
 
-    function verify(MarketplaceOffer memory mpo, bytes memory raw_signature) internal view returns (address) {
+    function verify(Authorization memory auth, bytes memory raw_signature) internal view returns (address) {
         Signature memory signature = _splitSignature(raw_signature);
         bytes32 digest = keccak256(abi.encodePacked(
                 "\x19\x01",
                 DOMAIN_SEPARATOR,
-                hash(mpo)
+                hash(auth)
             ));
+
         return ecrecover(digest, signature.v, signature.r, signature.s);
     }
 
