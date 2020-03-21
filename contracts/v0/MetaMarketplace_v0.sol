@@ -30,10 +30,10 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
         t721c = IT721Controller_v0(_t721c);
     }
 
-    // @notice Recover the current ticket nonce
-    //
-    // @param ticket Get the nonce of provided ticket ID
-    //
+    /**  @notice Recover the current ticket nonce
+     *
+     *  @param ticket Get the nonce of provided ticket ID
+     */
     function getNonce(uint256 ticket) external view returns (uint256 nonce) {
         return ticket_nonces[ticket];
     }
@@ -66,6 +66,51 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
         return (size > 0);
     }
 
+    /**
+     * @notice seal an exchange between two users and triggers the payment.
+     *
+     * @param id This is the identifier of the event. When combining event controller address and this is, we get a
+     *           unique identifier used to regroup the tickets.
+     *
+     * @param uints This parameter contains all the uin256 arguments required to pay and exchange ticket
+     *
+     *                            +> These are the arguments used for the payment logics
+     *        | currency_count    | < This is the number of currency to use for the payment (in our example: 2)
+     *        | currency_1_price  | < For each currency, the price paid to the organizer
+     *        | currency_1_fee    | < For each currency, the extra fee for T721
+     *        | currency_2_price  |
+     *        | currency_2_fee    |
+     *
+     *                            +> These are the arguments used for the exchange process
+     *        | ticket_id         | < This is the ID of the ticket sold
+     *        | nonce             | < This is the exchange nonce
+     *
+     * @param addr This parameter contains all the address arguments required to pay and exchange ticket
+     *
+     *                            +> These are the arguments used for the payment logics
+     *        | buyer             | < The address of buyer
+     *        | seller            | < The address of seller
+     *        | event_controller  | < The address of event_controller
+     *        | fee_collector     | < The address of fee_collector
+     *        | currency_1        | < The address of each currency
+     *        | currency_2        |
+     *
+     *                            +> There are no address arguments for the exchange process
+     *        |                   |
+     *
+     * @param bs This parameter contains bytes used to pay and mint the tickets. The notation argument[23] means it's
+     *           a 23 bytes segment.
+     *
+     *                            +> There are no bytes arguments for the payment process
+     *        |                   |
+     *
+     *                            +> These are the arguments used for the minting process
+     *        | buyer_sig[65]     | < Buyer signature
+     *        | seller_sig[65]    | < Seller signature
+     *        | evemt_sig[65]     | < Event authorization signature
+     *
+     *
+     */
     function sealSale(string memory id, uint256[] memory uints, address[] memory addr, bytes memory bs) public {
 
         uint256 uints_idx = 1;
