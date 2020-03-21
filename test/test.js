@@ -1,43 +1,45 @@
 const chai = require('chai');
 const chaiAsPromised = require('chai-as-promised');
-const { revert, snapshot } = require('../test_cases/utils');
+const { revert, snapshot } = require('./utils');
 chai.use(chaiAsPromised);
 const expect = chai.expect;
 
-const { setScopeIndex, CONTRACT_NAME, SCOPE_NAME, CHAIN_ID } = require('../test_cases/constants');
+const { setScopeIndex, CONTRACT_NAME, SCOPE_NAME, CHAIN_ID } = require('./constants');
 
-const {erc20_offer} = require('../test_cases/erc20_offer');
-const {erc20_offer_smart_wallets} = require('../test_cases/erc20_offer_smart_wallets');
-const {seal_invalid_addr_length} = require('../test_cases/seal_invalid_addr_length');
-const {seal_invalid_nums_length} = require('../test_cases/seal_invalid_nums_length');
-const {seal_invalid_bdata_length} = require('../test_cases/seal_invalid_bdata_length');
-const {seal_invalid_nonce} = require('../test_cases/seal_invalid_nonce');
-const {seal_invalid_ticket_owner} = require('../test_cases/seal_invalid_ticket_owner');
-const {seal_seller_is_buyer} = require('../test_cases/seal_seller_is_buyer');
-const {seal_invalid_currency_count} = require('../test_cases/seal_invalid_currency_count');
-const {seal_invalid_erc20_addr_length} = require('../test_cases/seal_invalid_erc20_addr_length');
-const {seal_invalid_erc20_nums_length} = require('../test_cases/seal_invalid_erc20_nums_length');
-const {seal_erc20_allowance_too_low} = require('../test_cases/seal_erc20_allowance_too_low');
-const {seal_invalid_buyer_signature} = require('../test_cases/seal_invalid_buyer_signature');
-const {seal_invalid_seller_signature} = require('../test_cases/seal_invalid_seller_signature');
-const {seal_invalid_buyer_mode} = require('../test_cases/seal_invalid_buyer_mode');
-const {seal_invalid_seller_mode} = require('../test_cases/seal_invalid_seller_mode');
+const { getNonce } = require('../test_cases/getNonce');
+const { sealSale } = require('../test_cases/sealSale');
+const { sealSale_missing_actor_addresses } = require('../test_cases/sealSale_missing_actor_addresses');
+const { sealSale_missing_currency_number } = require('../test_cases/sealSale_missing_currency_number');
+const { sealSale_missing_addr_for_payment } = require('../test_cases/sealSale_missing_addr_for_payment');
+const { sealSale_missing_uints_for_sale } = require('../test_cases/sealSale_missing_uints_for_sale');
+const { sealSale_missing_signatures } = require('../test_cases/sealSale_missing_signatures');
+const { sealSale_invalid_buyer_signature } = require('../test_cases/sealSale_invalid_buyer_signature');
+const { sealSale_invalid_seller_signature } = require('../test_cases/sealSale_invalid_seller_signature');
+const { sealSale_invalid_event_controller_signature } = require('../test_cases/sealSale_invalid_event_controller_signature');
+const { sealSale_invalid_event_controller } = require('../test_cases/sealSale_invalid_event_controller');
+const { sealSale_invalid_nonce } = require('../test_cases/sealSale_invalid_nonce');
+const { sealSale_buyer_smart_wallet } = require('../test_cases/sealSale_buyer_smart_wallet');
+const { sealSale_buyer_invalid_smart_wallet } = require('../test_cases/sealSale_buyer_invalid_smart_wallet');
+const { sealSale_seller_smart_wallet } = require('../test_cases/sealSale_seller_smart_wallet');
+const { sealSale_seller_invalid_smart_wallet } = require('../test_cases/sealSale_seller_invalid_smart_wallet');
 
 contract('metamarketplace', (accounts) => {
 
-    before(async function () {
+    before(async function() {
         const ERC20MockArtifact = artifacts.require('ERC20Mock_v0');
         const DaiMockArtifact = artifacts.require('DaiMock_v0');
         const ERC721MockArtifact = artifacts.require('ERC721Mock_v0');
         const SmartWalletMockArtifact = artifacts.require('SmartWalletMock_v0');
         const MetaMarketplaceArtifact = artifacts.require(CONTRACT_NAME);
+        const T721ControllerMockArtifact = artifacts.require('T721ControllerMock_v0');
 
         const ERC20Instance = await ERC20MockArtifact.deployed();
         const DaiInstance = await DaiMockArtifact.deployed();
         const ERC721Instance = await ERC721MockArtifact.deployed();
         const MetaMarketplaceInstance = await MetaMarketplaceArtifact.deployed();
+        const T721ControllerMockInstance = await T721ControllerMockArtifact.deployed();
 
-        await ERC721Instance.createScope(SCOPE_NAME, '0x0000000000000000000000000000000000000000', [MetaMarketplaceInstance.address], []);
+        await ERC721Instance.createScope(SCOPE_NAME, '0x0000000000000000000000000000000000000000', [MetaMarketplaceInstance.address], [accounts[8]], false);
         const scope = await ERC721Instance.getScope(SCOPE_NAME);
         setScopeIndex(scope.scope_index.toNumber());
 
@@ -46,7 +48,8 @@ contract('metamarketplace', (accounts) => {
             ERC20: ERC20Instance,
             Dai: DaiInstance,
             ERC721: ERC721Instance,
-            SmartWalletMockArtifact: SmartWalletMockArtifact
+            SmartWalletMockArtifact: SmartWalletMockArtifact,
+            T721ControllerMock: T721ControllerMockInstance
         };
 
         this.snap_id = await snapshot();
@@ -55,30 +58,39 @@ contract('metamarketplace', (accounts) => {
         this.network_id = await web3.eth.net.getId();
     });
 
-    beforeEach(async function () {
+    beforeEach(async function() {
         const status = await revert(this.snap_id);
         expect(status).to.be.true;
         this.snap_id = await snapshot();
     });
 
-    describe('MarketplaceOffer', function () {
+    describe('MarketplaceOffer', function() {
 
-        it('erc20 offer', erc20_offer);
-        it('erc20 offer smart wallet', erc20_offer_smart_wallets);
-        it('seal invalid addr length', seal_invalid_addr_length);
-        it('seal invalid nums length', seal_invalid_nums_length);
-        it('seal invalid bdata length', seal_invalid_bdata_length);
-        it('seal invalid nonce', seal_invalid_nonce);
-        it('seal invalid ticket owner', seal_invalid_ticket_owner);
-        it('seal seller is buyer', seal_seller_is_buyer);
-        it('seal invalid currency count', seal_invalid_currency_count);
-        it('seal invalid erc20 addr length', seal_invalid_erc20_addr_length);
-        it('seal invalid erc20 nums length', seal_invalid_erc20_nums_length);
-        it('seal erc20 allowance too low', seal_erc20_allowance_too_low);
-        it('seal invalid buyer signature', seal_invalid_buyer_signature);
-        it('seal invalid seller signature', seal_invalid_seller_signature);
-        it('seal invalid buyer mode', seal_invalid_buyer_mode);
-        it('seal invalid seller mode', seal_invalid_seller_mode);
+        describe('Utility', function() {
+
+            it('getNonce', getNonce);
+
+        });
+
+        describe('sealSale', function() {
+
+            it('sealSale', sealSale);
+            it('sealSale missing actor addresses', sealSale_missing_actor_addresses);
+            it('sealSale missing currency number', sealSale_missing_currency_number);
+            it('sealSale missing addr for payment', sealSale_missing_addr_for_payment);
+            it('sealSale missing uints for sale', sealSale_missing_uints_for_sale);
+            it('sealSale missing signatures', sealSale_missing_signatures);
+            it('sealSale invalid buyer signature', sealSale_invalid_buyer_signature);
+            it('sealSale invalid seller signature', sealSale_invalid_seller_signature);
+            it('sealSale invalid event controller signature', sealSale_invalid_event_controller_signature);
+            it('sealSale invalid event controller', sealSale_invalid_event_controller);
+            it('sealSale invalid nonce', sealSale_invalid_nonce);
+            it('sealSale buyer smart wallet', sealSale_buyer_smart_wallet);
+            it('sealSale buyer invalid smart wallet', sealSale_buyer_invalid_smart_wallet);
+            it('sealSale seller smart wallet', sealSale_seller_smart_wallet);
+            it('sealSale seller invalid smart wallet', sealSale_seller_invalid_smart_wallet);
+
+        });
 
     });
 
