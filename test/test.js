@@ -9,6 +9,7 @@ const { setScopeIndex, CONTRACT_NAME, SCOPE_NAME, CHAIN_ID } = require('./consta
 const { getNonce } = require('../test_cases/getNonce');
 const { sealSale } = require('../test_cases/sealSale');
 const { sealSale_for_free } = require('../test_cases/sealSale_for_free');
+const { sealSale_no_fees } = require('../test_cases/sealSale_no_fees');
 const { sealSale_missing_actor_addresses } = require('../test_cases/sealSale_missing_actor_addresses');
 const { sealSale_missing_currency_number } = require('../test_cases/sealSale_missing_currency_number');
 const { sealSale_missing_addr_for_payment } = require('../test_cases/sealSale_missing_addr_for_payment');
@@ -78,6 +79,7 @@ contract('metamarketplace', (accounts) => {
 
             it('sealSale', sealSale);
             it('sealSale for free', sealSale_for_free);
+            it('sealSale no fees', sealSale_no_fees);
             it('sealSale missing actor addresses', sealSale_missing_actor_addresses);
             it('sealSale missing currency number', sealSale_missing_currency_number);
             it('sealSale missing addr for payment', sealSale_missing_addr_for_payment);

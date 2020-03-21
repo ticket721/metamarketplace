@@ -48,7 +48,9 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
     ) internal {
 
         IERC20(currency).transferFrom(buyer, seller, amount);
-        IERC20(currency).transferFrom(buyer, fee_collector, fee);
+        if (fee > 0) {
+            IERC20(currency).transferFrom(buyer, fee_collector, fee);
+        }
 
     }
 
