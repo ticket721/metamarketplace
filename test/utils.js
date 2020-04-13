@@ -87,11 +87,14 @@ const encodeAddress = (address) => {
     return web3.eth.abi.encodeParameters(['address'], [address]).slice(2);
 };
 
-const generateSealSalePayload = async (id, payments, ticket_id, nonce, buyer, seller, event_controller, fee_collector, signer, mmaddress) => {
+const generateSealSalePayload = async (id, payments, ticket_id, nonce, expiration, buyer, seller, event_controller, fee_collector, signer, mmaddress) => {
 
     const uints = [];
     const addr = [];
     let prices = '0x';
+
+    expiration = new Date(Math.floor(expiration.getTime() / 1000));
+
 
     addr.push(buyer.address);
     addr.push(seller.address);
@@ -111,10 +114,11 @@ const generateSealSalePayload = async (id, payments, ticket_id, nonce, buyer, se
 
     uints.push(`0x${ticket_id.toString(16)}`);
     uints.push(`0x${nonce.toString(16)}`);
+    uints.push(`0x${expiration.getTime().toString(16)}`);
 
     const hash = encodeAndHash(
-        ['string', 'bytes', 'address', 'address', 'address', 'uint256', 'uint256'],
-        ['sealSale', prices, buyer.address, seller.address, event_controller.address, `0x${ticket_id.toString(16)}`, `0x${nonce.toString(16)}`]
+        ['string', 'bytes', 'address', 'address', 'address', 'uint256', 'uint256', 'uint256'],
+        ['sealSale', prices, buyer.address, seller.address, event_controller.address, `0x${ticket_id.toString(16)}`, `0x${nonce.toString(16)}`, `0x${expiration.getTime().toString(16)}`]
     );
 
     const buyerPayload = signer.generatePayload({

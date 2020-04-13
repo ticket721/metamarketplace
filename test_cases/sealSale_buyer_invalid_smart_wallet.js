@@ -48,8 +48,9 @@ module.exports = {
         expect((await ERC721.balanceOf(seller.address)).toNumber()).to.equal(1);
 
         const signer = new Authorizer(network_id, MetaMarketplace.address);
+        const expiration = new Date(Date.now() + 60000);
 
-        const [id, uints, addr, bs] = await generateSealSalePayload(uuid, payments, ticket_id, nonce, buyer, seller, eventControllerWallet, fee_collector, signer, MetaMarketplace.address);
+        const [id, uints, addr, bs] = await generateSealSalePayload(uuid, payments, ticket_id, nonce, expiration, buyer, seller, eventControllerWallet, fee_collector, signer, MetaMarketplace.address);
 
         await expect(MetaMarketplace.sealSale(id, uints, addr, bs)).to.eventually.be.rejectedWith('MM::sealSale | invalid buyer signature');
 
