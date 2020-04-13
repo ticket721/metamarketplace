@@ -60,7 +60,7 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
 
     }
 
-    function isContract(address _addr) internal returns (bool isContract){
+    function isContract(address _addr) internal view returns (bool){
         uint32 size;
         assembly {
             size := extcodesize(_addr)
@@ -86,6 +86,7 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
      *                            +> These are the arguments used for the exchange process
      *        | ticket_id         | < This is the ID of the ticket sold
      *        | nonce             | < This is the exchange nonce
+     *        | expiration        | < This is the authorization expiration
      *
      * @param addr This parameter contains all the address arguments required to pay and exchange ticket
      *
@@ -164,7 +165,7 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
 
         }
 
-        require(uints.length - uints_idx == 2, "MM::sealSale | not enough space on uints (2)");
+        require(uints.length - uints_idx == 3, "MM::sealSale | not enough space on uints (2)");
 
         uint256 ticket_id = uints[uints_idx];
         uint256 nonce = uints[uints_idx + 1];
@@ -173,6 +174,9 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
 
         // Verify all authorizations
         {
+            uint256 expiration = uints[uints_idx + 2];
+            require(block.timestamp <= expiration, "MM::sealSale | authorization expired");
+
             bytes32 hash = keccak256(
                 abi.encode(
                     "sealSale",
@@ -181,7 +185,8 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
                     seller,
                     event_controller,
                     ticket_id,
-                    nonce
+                    nonce,
+                    expiration
                 )
             );
 
