@@ -15,7 +15,6 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
         address indexed seller,
         uint256 indexed ticket,
         uint256 nonce,
-        bytes currencies,
         bytes prices
     );
 
@@ -171,6 +170,7 @@ contract MetaMarketplace_v0 is MetaMarketplaceDomain_v0 {
         uint256 nonce = uints[uints_idx + 1];
 
         executeTransfer(seller, buyer, ticket_id);
+        emit SealedOffer(buyer, seller, ticket_id, nonce, prices);
 
         // Verify all authorizations
         {
